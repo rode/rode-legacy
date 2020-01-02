@@ -1,0 +1,107 @@
+# Default values for rode.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+nats:
+  image:
+    registry: docker.io
+    repository: bitnami/nats
+    tag: 2.1.2-debian-9-r0
+    pullPolicy: IfNotPresent
+  replicaCount: 3
+
+  securityContext:
+    enabled: true
+    fsGroup: 1001
+    runAsUser: 1001
+
+  antiAffinity: soft
+
+  resourceType: "statefulset"
+
+  statefulset:
+    updateStrategy: OnDelete
+  deployment:
+    updateType: RollingUpdate
+
+  resources: 
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  auth:
+    enabled: true
+    user: nats_client
+
+  clusterAuth:
+    enabled: true
+    user: nats_cluster
+
+  debug:
+    enabled: false
+    trace: false
+    logtime: false
+
+  maxConnections: 100
+  maxControlLine: 512
+  maxPayload: 65536
+  writeDeadline: "2s"
+
+  networkPolicy:
+    enabled: true
+    allowExternal: false
+
+  client:
+    service:
+      type: ClusterIP
+      port: 4222
+  cluster:
+    service:
+      type: ClusterIP
+      port: 6222
+
+  monitoring:
+    service:
+      type: ClusterIP
+      port: 8222
+      loadBalancerIP:
+
+  ingress:
+    enabled: false
+
+  natsFilename: nats-server
+
+  metrics:
+    enabled: true
+    image:
+      registry: docker.io
+      repository: bitnami/nats-exporter
+      tag: 0.6.0-debian-9-r71
+      pullPolicy: IfNotPresent
+    port: 7777
+    podAnnotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "7777"
+    args:
+      - -connz
+      - -routez
+      - -subz
+      - -varz
