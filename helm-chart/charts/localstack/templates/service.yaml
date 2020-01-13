@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.service.name }}
+  name: {{ .Values.service.name }}
+{{- else }}
+  name: {{ template "fullname" . }}
+{{- end }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  {{- $root := . }}
+    - name: web
+      protocol: TCP
+      {{- with .Values.service.web }}
+      port: {{ .externalPort }}
+      targetPort: {{ .internalPort }}
+      {{- if contains "NodePort" $root.Values.service.type }}
+      {{- if .nodePort }}
+      nodePort: {{ .nodePort }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+  {{- range $index, $val := .Values.service.activeLocalStackServices }}
+    - name: {{ $val.name }}
+      protocol: TCP
+      port: {{ $val.externalPort }}
+      targetPort: {{ $val.internalPort }}
+      {{- if contains "NodePort" $root.Values.service.type }}
+      {{- if $val.nodePort }}
+      nodePort: {{ $val.nodePort }}
+      {{- end }}
+      {{- end }}
+  {{- end }}
+  selector:
+    app: {{ template "name" . }}
+    release: {{ .Release.Name }}

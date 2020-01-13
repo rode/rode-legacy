@@ -1,0 +1,186 @@
+# Default values for localstack.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+image:
+  repository: localstack/localstack
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: NodePort
+  web:
+    externalPort: 8080
+    internalPort: 8080
+    # set this when you used service.type = NodePort and wanted to use fixed node port
+    # nodePort:
+  activeLocalStackServices:
+    # comment out services you want to spawn
+    # - name: apigateway
+    #   internalPort: 4567
+    #   externalPort: 4567
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: kinesis
+    #   internalPort: 4568
+    #   externalPort: 4568
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: dynamodb
+    #   internalPort: 4569
+    #   externalPort: 4569
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: dynamodbstreams
+    #   internalPort: 4570
+    #   externalPort: 4570
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: elasticsearch
+    #   internalPort: 4571
+    #   externalPort: 4571
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    - name: s3
+      internalPort: 4572
+      externalPort: 4572
+      # set this when you used service.type = NodePort and wanted to use fixed node port
+      nodePort:
+    # - name: firehose
+    #   internalPort: 4573
+    #   externalPort: 4573
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: lambda
+    #   internalPort: 4574
+    #   externalPort: 4574
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: sns
+    #   internalPort: 4575
+    #   externalPort: 4575
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    - name: sqs
+      internalPort: 4576
+      externalPort: 4576
+      # set this when you used service.type = NodePort and wanted to use fixed node port
+      nodePort:
+    # - name: redshift
+    #   internalPort: 4577
+    #   externalPort: 4577
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: es
+    #   internalPort: 4578
+    #   externalPort: 4578
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: ses
+    #   internalPort: 4579
+    #   externalPort: 4579
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: route53
+    #   internalPort: 4580
+    #   externalPort: 4580
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    - name: cloudformation
+      internalPort: 4581
+      externalPort: 4581
+      # set this when you used service.type = NodePort and wanted to use fixed node port
+      nodePort:
+    - name: cloudwatch
+      internalPort: 4582
+      externalPort: 4582
+      # set this when you used service.type = NodePort and wanted to use fixed node port
+      nodePort:
+    # - name: ssm
+    #   internalPort: 4583
+    #   externalPort: 4583
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+
+ingress:
+  enabled: false
+  # Used to create an Ingress record.
+  hosts:
+    - chart-example.local
+  annotations:
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  tls:
+    # Secrets must be manually created in the namespace.
+    # - secretName: chart-example-tls
+    #   hosts:
+    #     - chart-example.local
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+
+## Persist data to a persitent volume
+persistence:
+  enabled: true
+  ## Name of existing persistent volume to attach
+  # existingClaim: ""
+
+  ##  Persistent Volume Storage Class
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  ##
+  storageClass: ""
+
+  ## Persistent Volume Access Mode.
+  accessMode: ReadWriteOnce
+
+  ## Persistent Volume Storage Size.
+  size: 20Gi
+
+localstack:
+  useSsl: "false"
+  defaultRegion: "us-east-1"
+  #  default of hostExternal {{service.name}}.{{namespace deployed into}}
+  #  hostExternal:
+  kinesisErrorProbability: "0.0"
+  dynamodbErrorProbability: "0.0"
+  lambdaExecutor: "local"
+  serviceBackends:
+    apigateway:
+      enabled: false
+      endpoint: ""
+    cloudformation:
+      enabled: true
+      endpoint: ""
+    dynamodb:
+      enabled: false
+      endpoint: ""
+    elasticsearch:
+      enabled: false
+      endpoint: ""
+    kinesis:
+      enabled: false
+      endpoint: ""
+    s3:
+      enabled: false
+      endpoint: ""
+    sns:
+      enabled: false
+      endpoint: ""
+    sqs:
+      enabled: true
+      endpoint: ""
+    cloudwatch:
+      enabled: true
+      endpoint: ""

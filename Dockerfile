@@ -20,8 +20,9 @@ RUN go mod verify
 
 # Build binary
 ADD cmd ./cmd
-ENV GOOS=linux GOARCH=amd64
-RUN go build -ldflags="-w -s" -o ./bin/rode-ingester ./cmd/ingester/*
+ADD pkg ./pkg
+ENV GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+RUN go build -ldflags="-w -s" -o ./bin/rode-ingester ./cmd/ingester/* 
 
 ########################
 # STEP 2 build the image

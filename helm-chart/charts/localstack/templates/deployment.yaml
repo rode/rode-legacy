@@ -1,0 +1,98 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "fullname" . }}
+  labels:
+    app: {{ template "name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  template:
+    metadata:
+      labels:
+        app: {{ template "name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.web.internalPort }}
+          {{- range $index, $val := .Values.service.activeLocalStackServices }}
+            - containerPort: {{ $val.internalPort }}
+          {{- end }}
+          env:
+            - name: USE_SSL
+              value: !!string {{ .Values.localstack.useSsl }}
+            - name: SERVICES
+              value: "{{- range $index, $val := .Values.service.activeLocalStackServices -}}
+                      {{- if $index -}},{{- end -}}{{- $val.name -}}:{{- $val.internalPort -}}
+                      {{- end -}}"
+            {{- $root :=  . -}}
+            {{- with .Values.localstack }}
+              {{- if .defaultRegion }}
+            - name: DEFAULT_REGION
+              value: {{ .defaultRegion | quote}}
+              {{- end }}
+            - name: HOSTNAME_EXTERNAL
+              {{- if .hostExternal }}
+              value: {{.hostExternal | quote}}
+              {{- else }}
+              value: "{{- template "fullname" $root -}}.{{- $root.Release.Namespace -}}"
+              {{- end }}
+              {{- if .kinesisErrorProbability }}
+            - name: KINESIS_ERROR_PROBABILITY
+              value: {{.kinesisErrorProbability | quote}}
+              {{- end }}
+              {{- if .dynamodbErrorProbability }}
+            - name: DYNAMODB_ERROR_PROBABILITY
+              value: {{.dynamodbErrorProbability | quote}}
+              {{- end }}
+              {{- if .lambdaExecutor }}
+            - name: LAMBDA_EXECUTOR
+              value: {{.lambdaExecutor | quote }}
+              {{- end }}
+              {{- range $key, $val := .serviceBackends -}}
+              {{- if $val.enabled }}
+            - name: {{$key | upper}}_BACKEND
+              value: {{$val.endpoint | quote}}
+              {{- end }}
+              {{- end -}}
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: DATA_DIR
+              value: "/tmp/localstack/data"
+            {{- end }}
+            - name: PORT_WEB_UI
+              value: {{ .Values.service.web.internalPort | quote }}
+          # livenessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: {{ .Values.service.web.internalPort }}
+          # readinessProbe:
+          #   httpGet:
+          #     path: /
+          #     port: {{ .Values.service.web.internalPort }}
+          volumeMounts:
+            - name: datadir
+              mountPath: /tmp/localstack
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations:
+{{ toYaml .Values.tolerations | indent 8 }}
+    {{- end }}
+      volumes:
+        - name: datadir
+      {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "fullname" .)}}
+      {{- else }}
+          emptyDir: {}
+      {{- end }}

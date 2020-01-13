@@ -1,8 +1,9 @@
 # Default values for rode.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
+
 grafeas:
-  enable: true
+  enabled: true
   storageType: embedded
   container:
     port: 443
@@ -13,11 +14,21 @@ grafeas:
   secret:
     enabled: true
 
+localstack:
+  enabled: false
 
 image:
   repository: ""
   tag: ""
   pullPolicy: IfNotPresent
+
+ginMode: release
+extraEnv: []
+
+container:
+  port: 8080
+service:
+  port: 8080
 
 livenessProbe:
   failureThreshold: 3

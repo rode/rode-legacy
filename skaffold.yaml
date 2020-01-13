@@ -13,3 +13,23 @@ deploy:
           image: rode
         imageStrategy:
           helm: {}
+
+profiles:
+- name: local
+  activation:
+    - kubeContext: docker-for-desktop
+  patches:
+    - op: add
+      path: /deploy/helm/releases/0/overrides
+      value:
+        localstack:
+          enabled: true
+        extraEnv:
+        - name: AWS_REGION
+          value: us-east-1
+        - name: AWS_ACCESS_KEY_ID
+          value: fake
+        - name: AWS_SECRET_ACCESS_KEY
+          value: fake
+        - name: AWS_SQS_ENDPOINT
+          value: rode-localstack:4576
