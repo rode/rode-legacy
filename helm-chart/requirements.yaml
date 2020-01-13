@@ -1,4 +1,4 @@
 dependencies:
-  - name: nats
-    version: 4.2.7
-    repository: https://kubernetes-charts.storage.googleapis.com/
+  - name: grafeas
+    version: 0.1.1
+    condition: grafeas.enabled

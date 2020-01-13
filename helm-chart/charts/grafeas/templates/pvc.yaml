@@ -1,0 +1,18 @@
+{{- if eq .Values.storageType "embedded" }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: {{ .Values.persistence.volumeClaimName }}
+  labels:
+    app.kubernetes.io/name: {{ include "grafeas.name" . }}
+    helm.sh/chart: {{ include "grafeas.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  accessModes:
+    - {{ .Values.persistence.accessMode | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end }}

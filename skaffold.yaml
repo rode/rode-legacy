@@ -1,0 +1,15 @@
+apiVersion: skaffold/v2alpha1
+kind: Config
+build:
+  artifacts:
+  - image: rode
+deploy:
+  helm:
+    releases:
+      - name: rode
+        chartPath: helm-chart
+        skipBuildDependencies: true
+        values:
+          image: rode
+        imageStrategy:
+          helm: {}
