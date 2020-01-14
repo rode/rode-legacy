@@ -1,0 +1,22 @@
+{
+  "version": "0",
+  "id": "9e5f4498-b166-586f-1779-3589839bb916",
+  "detail-type": "ECR Image Scan",
+  "source": "aws.ecr",
+  "account": "489130170427",
+  "time": "2020-01-14T07:56:35Z",
+  "region": "us-east-1",
+  "resources": [
+    "arn:aws:ecr:us-east-1:489130170427:repository/springtrader"
+  ],
+  "detail": {
+    "scan-status": "COMPLETE",
+    "repository-name": "springtrader",
+    "image-digest": "sha256:b88ca0f4a7fe2c67fc8bdb67ad405f418ca0be6aec442c79ae32253138da2dd5",
+    "image-tags": [],
+    "finding-severity-counts": {
+      "MEDIUM": 5,
+      "HIGH": 9
+    }
+  }
+}

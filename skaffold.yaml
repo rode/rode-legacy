@@ -33,3 +33,25 @@ profiles:
           value: fake
         - name: AWS_SQS_ENDPOINT
           value: rode-localstack:4576
+        - name: AWS_EVENTS_ENDPOINT
+          value: rode-localstack:4587
+
+- name: production
+  patches:
+    - op: add
+      path: /deploy/helm/flags
+      value: 
+        global:
+          - '--tiller-namespace'
+          - 'rode'
+    - op: add
+      path: /deploy/helm/releases/0/namespace
+      value: rode
+    - op: add
+      path: /deploy/helm/releases/0/overrides
+      value:
+        image:
+          pullPolicy: Always
+        rbac:
+          serviceAccountAnnotations:
+              eks.amazonaws.com/role-arn: arn:aws:iam::489130170427:role/RodeServiceAccount

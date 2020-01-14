@@ -19,11 +19,16 @@ spec:
         app: {{ template "rode.name" . }}
         release: {{ .Release.Name }}
     spec:
+      serviceAccountName: {{ .Values.rbac.serviceAccountName }}
+      securityContext:
+        fsGroup: 65534
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
+            - name: AWS_REGION
+              value: {{ .Values.region }}
             - name: GIN_MODE
               value: {{ .Values.ginMode }}
           {{- with .Values.extraEnv }}

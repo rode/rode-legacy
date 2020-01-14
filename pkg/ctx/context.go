@@ -1,7 +1,7 @@
 package ctx
 
 import (
-	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gin-gonic/gin"
 	"github.com/liatrio/rode/pkg/grafeas"
 	"go.uber.org/zap"

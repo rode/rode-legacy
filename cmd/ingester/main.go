@@ -37,7 +37,7 @@ func main() {
 	context := ctx.NewContext().
 		WithLogger(logger).
 		WithRouter(startServer(logger.Desugar())).
-		WithAWSConfig(aws.NewAWSConfig()).
+		WithAWSConfig(aws.NewAWSConfig(logger)).
 		WithGrafeas(grafeas.NewClient(logger))
 
 	c := controller.NewController(context)

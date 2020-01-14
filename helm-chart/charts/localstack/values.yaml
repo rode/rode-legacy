@@ -40,11 +40,11 @@ service:
     #   externalPort: 4571
     #   # set this when you used service.type = NodePort and wanted to use fixed node port
     #   nodePort:
-    - name: s3
-      internalPort: 4572
-      externalPort: 4572
-      # set this when you used service.type = NodePort and wanted to use fixed node port
-      nodePort:
+    # - name: s3
+    #   internalPort: 4572
+    #   externalPort: 4572
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
     # - name: firehose
     #   internalPort: 4573
     #   externalPort: 4573
@@ -64,7 +64,7 @@ service:
       internalPort: 4576
       externalPort: 4576
       # set this when you used service.type = NodePort and wanted to use fixed node port
-      nodePort:
+      nodePort: 30576
     # - name: redshift
     #   internalPort: 4577
     #   externalPort: 4577
@@ -85,21 +85,26 @@ service:
     #   externalPort: 4580
     #   # set this when you used service.type = NodePort and wanted to use fixed node port
     #   nodePort:
-    - name: cloudformation
-      internalPort: 4581
-      externalPort: 4581
-      # set this when you used service.type = NodePort and wanted to use fixed node port
-      nodePort:
-    - name: cloudwatch
-      internalPort: 4582
-      externalPort: 4582
-      # set this when you used service.type = NodePort and wanted to use fixed node port
-      nodePort:
+    # - name: cloudformation
+    #   internalPort: 4581
+    #   externalPort: 4581
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
+    # - name: cloudwatch
+    #   internalPort: 4582
+    #   externalPort: 4582
+    #   # set this when you used service.type = NodePort and wanted to use fixed node port
+    #   nodePort:
     # - name: ssm
     #   internalPort: 4583
     #   externalPort: 4583
     #   # set this when you used service.type = NodePort and wanted to use fixed node port
     #   nodePort:
+    - name: events
+      internalPort: 4587
+      externalPort: 4587
+      # set this when you used service.type = NodePort and wanted to use fixed node port
+      nodePort: 30587
 
 ingress:
   enabled: false
@@ -161,7 +166,7 @@ localstack:
       enabled: false
       endpoint: ""
     cloudformation:
-      enabled: true
+      enabled: false
       endpoint: ""
     dynamodb:
       enabled: false
@@ -179,8 +184,11 @@ localstack:
       enabled: false
       endpoint: ""
     sqs:
-      enabled: true
+      enabled: false
+      endpoint: ""
+    events:
+      enabled: false
       endpoint: ""
     cloudwatch:
-      enabled: true
+      enabled: false
       endpoint: ""

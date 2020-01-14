@@ -22,8 +22,14 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
 
+region: us-east-1
 ginMode: release
 extraEnv: []
+
+rbac:
+  create: true
+  serviceAccountName: rode
+  serviceAccountAnnotations: {}
 
 container:
   port: 8080

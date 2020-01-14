@@ -5,37 +5,45 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/aws/endpoints"
-	"github.com/aws/aws-sdk-go-v2/aws/external"
+	"go.uber.org/zap"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 )
 
 // NewAWSConfig creates the AWS config
-func NewAWSConfig() *aws.Config {
-	cfg, err := external.LoadDefaultAWSConfig()
-	if err != nil {
-		panic("unable to load SDK config, " + err.Error())
-	}
-
+func NewAWSConfig(logger *zap.SugaredLogger) *aws.Config {
+	cfg := &aws.Config{}
 	region := os.Getenv("AWS_REGION")
 	if region == "" {
 		region = endpoints.UsEast1RegionID
 	}
-	cfg.Region = region
+	cfg.Region = aws.String(region)
 
-	defaultResolver := endpoints.NewDefaultResolver()
-	customResolver := func(service, region string) (aws.Endpoint, error) {
+	customResolver := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
 		endpoint := os.Getenv(fmt.Sprintf("AWS_%s_ENDPOINT", strings.ToUpper(service)))
+		logger.Debugf("mapping service '%s' to endpoint '%s'", service, endpoint)
 		if endpoint != "" {
-			return aws.Endpoint{
-				URL:           fmt.Sprintf("http://%s", endpoint),
-				SigningRegion: "custom-signing-region",
+			return endpoints.ResolvedEndpoint{
+				URL: fmt.Sprintf("http://%s", endpoint),
+				//SigningRegion: "custom-signing-region",
 			}, nil
 		}
 
-		return defaultResolver.ResolveEndpoint(service, region)
+		return endpoints.DefaultResolver().EndpointFor(service, region, optFns...)
 	}
-	cfg.EndpointResolver = aws.EndpointResolverFunc(customResolver)
+	cfg.EndpointResolver = endpoints.ResolverFunc(customResolver)
 
-	return &cfg
+	session := session.Must(session.NewSession(cfg))
+	svc := sts.New(session)
+	result, err := svc.GetCallerIdentity(nil)
+	if err != nil {
+		logger.Errorf("Error getting caller identity %v\n", err)
+	} else {
+		logger.Infof("AWS Identity: %s", aws.StringValue(result.Arn))
+	}
+
+	return cfg
 }
