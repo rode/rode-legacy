@@ -9,11 +9,16 @@ deploy:
       - name: rode
         chartPath: helm-chart
         skipBuildDependencies: true
+        wait: true
         values:
           image: rode
         imageStrategy:
           helm: {}
-
+portForward:
+- resourceType: service
+  resourceName: rode
+  port: 8080
+  localPort: 8080
 profiles:
 - name: local
   activation:
@@ -22,8 +27,12 @@ profiles:
     - op: add
       path: /deploy/helm/releases/0/overrides
       value:
+        grafeas:
+          storageType: "memstore"
         localstack:
           enabled: true
+          persistence:
+            enabled: false
         extraEnv:
         - name: AWS_REGION
           value: us-east-1

@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/liatrio/rode/pkg/ctx"
 	"github.com/liatrio/rode/pkg/ingester"
 )
@@ -20,6 +22,15 @@ func NewController(
 	ctrl := &Controller{
 		*context,
 	}
+	context.Router.GET("/occurrences/*resource", func(c *gin.Context) {
+		resourceURI := strings.TrimPrefix(c.Param("resource"), "/")
+		o, err := context.Grafeas.GetOccurrences(resourceURI)
+		if err != nil {
+			c.AbortWithError(400, err)
+		} else {
+			c.JSON(200, o)
+		}
+	})
 	return ctrl
 }
 

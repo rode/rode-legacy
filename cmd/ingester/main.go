@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	ginzap "github.com/gin-contrib/zap"
@@ -34,11 +35,12 @@ func main() {
 		log.Fatalf("Error creating logger: %v", err)
 	}
 
+	grafeasEndpoint := os.Getenv("GRAFEAS_ENDPOINT")
 	context := ctx.NewContext().
 		WithLogger(logger).
 		WithRouter(startServer(logger.Desugar())).
 		WithAWSConfig(aws.NewAWSConfig(logger)).
-		WithGrafeas(grafeas.NewClient(logger))
+		WithGrafeas(grafeas.NewClient(logger, grafeasEndpoint))
 
 	c := controller.NewController(context)
 

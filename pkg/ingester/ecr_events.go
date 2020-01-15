@@ -12,7 +12,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/gin-gonic/gin"
-	grafeas "github.com/grafeas/client-go/0.1.0"
+	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
+	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
+	packag "github.com/grafeas/grafeas/proto/v1beta1/package_go_proto"
+	vulnerability "github.com/grafeas/grafeas/proto/v1beta1/vulnerability_go_proto"
 	"github.com/liatrio/rode/pkg/ctx"
 )
 
@@ -215,17 +218,28 @@ func (i *ecrIngester) watchQueue() {
 
 			event := &CloudWatchEvent{}
 			err = json.Unmarshal([]byte(body), event)
+			if err != nil {
+				i.Logger.Error(err)
+			}
 
-			var occurrence *grafeas.V1beta1Occurrence
+			var occurrences []*grafeas.Occurrence
 			switch event.DetailType {
 			case "ECR Image Action":
 				details := &ECRImageActionDetail{}
-				occurrence = i.newImageActionOccurrence(event, details)
+				err = json.Unmarshal(event.Detail, details)
+				if err != nil {
+					i.Logger.Error(err)
+				}
+				occurrences = i.newImageActionOccurrences(event, details)
 			case "ECR Image Scan":
 				details := &ECRImageScanDetail{}
-				occurrence = i.newImageScanOccurrence(event, details)
+				err = json.Unmarshal(event.Detail, details)
+				if err != nil {
+					i.Logger.Error(err)
+				}
+				occurrences = i.newImageScanOccurrences(event, details)
 			}
-			err = i.Grafeas.PutOccurrence(occurrence)
+			err = i.Grafeas.PutOccurrences(occurrences...)
 			if err != nil {
 				i.Logger.Error(err)
 			}
@@ -242,13 +256,99 @@ func (i *ecrIngester) watchQueue() {
 	}
 }
 
-func (i *ecrIngester) newImageScanOccurrence(event *CloudWatchEvent, detail *ECRImageScanDetail) *grafeas.V1beta1Occurrence {
-	// TODO: convert to grafeas occurrence
-	return &grafeas.V1beta1Occurrence{}
+func newImageScanOccurrence(event *CloudWatchEvent, detail *ECRImageScanDetail, tag string) *grafeas.Occurrence {
+	// TODO: load this from the ingester configs
+	ingesterName := "ecr_events"
+
+	o := &grafeas.Occurrence{}
+	o.NoteName = fmt.Sprintf("projects/%s/notes/%s", "rode", ingesterName)
+	o.Resource = &grafeas.Resource{
+		Uri: fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s@%s", event.AccountID, event.Region, detail.RepositoryName, tag, detail.ImageDigest),
+	}
+	return o
 }
-func (i *ecrIngester) newImageActionOccurrence(event *CloudWatchEvent, detail *ECRImageActionDetail) *grafeas.V1beta1Occurrence {
-	// TODO: convert to grafeas occurrence
-	return &grafeas.V1beta1Occurrence{}
+
+func (i *ecrIngester) getVulnerabilityDetails(detail *ECRImageScanDetail) []*grafeas.Occurrence_Vulnerability {
+	// TODO: load from ecr scan results
+	vulnerabilityDetails := make([]*grafeas.Occurrence_Vulnerability, 0, 0)
+	for k, v := range detail.FindingsSeverityCounts {
+		severity := vulnerability.Severity_SEVERITY_UNSPECIFIED
+		switch k {
+		case "CRITICAL":
+			severity = vulnerability.Severity_CRITICAL
+		case "HIGH":
+			severity = vulnerability.Severity_HIGH
+		case "MEDIUM":
+			severity = vulnerability.Severity_MEDIUM
+		case "LOW":
+			severity = vulnerability.Severity_LOW
+		case "INFORMATIONAL":
+			severity = vulnerability.Severity_MINIMAL
+		}
+		for i := int64(0); i < v; i++ {
+			v := &grafeas.Occurrence_Vulnerability{
+				Vulnerability: &vulnerability.Details{
+					Severity: severity,
+					PackageIssue: []*vulnerability.PackageIssue{
+						&vulnerability.PackageIssue{
+							AffectedLocation: &vulnerability.VulnerabilityLocation{
+								CpeUri:  "foo",
+								Package: "foo",
+								Version: &packag.Version{
+									Kind: packag.Version_NORMAL,
+									Name: "foo",
+								},
+							},
+						},
+					},
+				},
+			}
+			vulnerabilityDetails = append(vulnerabilityDetails, v)
+		}
+	}
+	return vulnerabilityDetails
+}
+func (i *ecrIngester) newImageScanOccurrences(event *CloudWatchEvent, detail *ECRImageScanDetail) []*grafeas.Occurrence {
+	tags := detail.ImageTags
+	if len(tags) == 0 {
+		tags = []string{"latest"}
+	}
+
+	status := discovery.Discovered_ANALYSIS_STATUS_UNSPECIFIED
+	vulnerabilityDetails := make([]*grafeas.Occurrence_Vulnerability, 0, 0)
+	if detail.ScanStatus == "COMPLETE" {
+		status = discovery.Discovered_FINISHED_SUCCESS
+		vulnerabilityDetails = i.getVulnerabilityDetails(detail)
+	} else if detail.ScanStatus == "FAILED" {
+		status = discovery.Discovered_FINISHED_FAILED
+	}
+	discoveryDetails := &grafeas.Occurrence_Discovered{
+		Discovered: &discovery.Details{
+			Discovered: &discovery.Discovered{
+				AnalysisStatus: status,
+			},
+		},
+	}
+
+	occurrences := make([]*grafeas.Occurrence, 0, 0)
+	for _, tag := range tags {
+		o := newImageScanOccurrence(event, detail, tag)
+		o.Details = discoveryDetails
+		occurrences = append(occurrences, o)
+
+		for _, v := range vulnerabilityDetails {
+			o = newImageScanOccurrence(event, detail, tag)
+			o.Details = v
+			occurrences = append(occurrences, o)
+		}
+	}
+	return occurrences
+}
+func newImageActionOccurrence(event *CloudWatchEvent, detail *ECRImageActionDetail) *grafeas.Occurrence {
+	return nil
+}
+func (i *ecrIngester) newImageActionOccurrences(event *CloudWatchEvent, detail *ECRImageActionDetail) []*grafeas.Occurrence {
+	return nil
 }
 
 // CloudWatchEvent structured event

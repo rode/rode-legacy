@@ -4,6 +4,7 @@
 
 grafeas:
   enabled: true
+  endpoint: ""
   storageType: embedded
   container:
     port: 443
@@ -11,8 +12,15 @@ grafeas:
     port: 443
   certificates:
     enabled: true
+    name: grafeas-ssl-certs
   secret:
-    enabled: true
+    enabled: false
+
+certificates:
+  name: rode-ssl-certs
+
+secret:
+  enabled: true
 
 localstack:
   enabled: false

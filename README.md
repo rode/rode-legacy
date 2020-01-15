@@ -1,5 +1,5 @@
 # Running locally
-`skaffold dev`
+`skaffold dev --port-forward`
 
 Send a test message:
 
