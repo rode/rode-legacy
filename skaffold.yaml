@@ -14,11 +14,6 @@ deploy:
           image: rode
         imageStrategy:
           helm: {}
-portForward:
-- resourceType: service
-  resourceName: rode
-  port: 8080
-  localPort: 8080
 profiles:
 - name: local
   activation:
@@ -44,6 +39,8 @@ profiles:
           value: rode-localstack:4576
         - name: AWS_EVENTS_ENDPOINT
           value: rode-localstack:4587
+        - name: OPA_TRACE
+          value: "0"
 
 - name: production
   patches:

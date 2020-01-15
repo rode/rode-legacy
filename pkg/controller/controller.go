@@ -1,8 +1,11 @@
 package controller
 
 import (
+	"io"
 	"strings"
 	"time"
+
+	"github.com/golang/protobuf/jsonpb"
 
 	"github.com/gin-gonic/gin"
 	"github.com/liatrio/rode/pkg/ctx"
@@ -22,13 +25,20 @@ func NewController(
 	ctrl := &Controller{
 		*context,
 	}
+	marshaler := &jsonpb.Marshaler{}
 	context.Router.GET("/occurrences/*resource", func(c *gin.Context) {
 		resourceURI := strings.TrimPrefix(c.Param("resource"), "/")
 		o, err := context.Grafeas.GetOccurrences(resourceURI)
 		if err != nil {
 			c.AbortWithError(400, err)
 		} else {
-			c.JSON(200, o)
+			c.Stream(func(w io.Writer) bool {
+				err := marshaler.Marshal(w, o)
+				if err != nil {
+					context.Logger.Errorf("Unable to stream pb", err)
+				}
+				return false
+			})
 		}
 	})
 	return ctrl

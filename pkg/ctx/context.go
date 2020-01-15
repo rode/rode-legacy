@@ -4,6 +4,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/gin-gonic/gin"
 	"github.com/liatrio/rode/pkg/grafeas"
+	"github.com/liatrio/rode/pkg/opa"
 	"go.uber.org/zap"
 )
 
@@ -13,6 +14,7 @@ type Context struct {
 	Logger    *zap.SugaredLogger
 	AWSConfig *aws.Config
 	Grafeas   *grafeas.Client
+	OPA       *opa.Client
 }
 
 // NewContext creates a new context instance
@@ -41,5 +43,11 @@ func (c *Context) WithAWSConfig(config *aws.Config) *Context {
 // WithGrafeas sets the Grafeas client for the context
 func (c *Context) WithGrafeas(grafeas *grafeas.Client) *Context {
 	c.Grafeas = grafeas
+	return c
+}
+
+// WithOPA sets the OPA client for the context
+func (c *Context) WithOPA(opa *opa.Client) *Context {
+	c.OPA = opa
 	return c
 }

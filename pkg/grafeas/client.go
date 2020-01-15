@@ -1,36 +1,43 @@
 package grafeas
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"regexp"
 
 	"google.golang.org/grpc/codes"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	attestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	project "github.com/grafeas/grafeas/proto/v1beta1/project_go_proto"
+	"github.com/liatrio/rode/pkg/common"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	"go.uber.org/zap"
 )
 
-const projectId = "rode"
+const projectID = "rode"
 
 // Client handle into grafeas
 type Client struct {
-	logger        *zap.SugaredLogger
-	grafeasClient grafeas.GrafeasV1Beta1Client
-	projectClient project.ProjectsClient
+	logger          *zap.SugaredLogger
+	grafeasClient   grafeas.GrafeasV1Beta1Client
+	projectClient   project.ProjectsClient
+	policyEvaluator common.PolicyEvaluator
 }
 
 // NewClient creates a new client
-func NewClient(logger *zap.SugaredLogger, endpoint string) *Client {
+func NewClient(logger *zap.SugaredLogger, policyEvaluator common.PolicyEvaluator, endpoint string) *Client {
 	logger.Infof("Using Grafeas endpoint: %s", endpoint)
 
 	grpcDialOption, err := newGRPCDialOption(logger)
@@ -45,18 +52,19 @@ func NewClient(logger *zap.SugaredLogger, endpoint string) *Client {
 		logger,
 		grafeasClient,
 		projectClient,
+		policyEvaluator,
 	}
-	c.getProject(fmt.Sprintf("projects/%s", projectId))
+	c.getProject(fmt.Sprintf("projects/%s", projectID))
 	return c
 }
 
 // GetOccurrences will get the occurence for a resource
-func (c *Client) GetOccurrences(resourceURI string) ([]*grafeas.Occurrence, error) {
+func (c *Client) GetOccurrences(resourceURI string) (*grafeas.ListOccurrencesResponse, error) {
 	ctx := context.TODO()
 	c.logger.Debugf("Get occurrences for resource '%s'", resourceURI)
 
 	resp, err := c.grafeasClient.ListOccurrences(ctx, &grafeas.ListOccurrencesRequest{
-		Parent:   fmt.Sprintf("projects/%s", projectId),
+		Parent:   fmt.Sprintf("projects/%s", projectID),
 		Filter:   fmt.Sprintf("resource.uri = '%s'", resourceURI),
 		PageSize: 1000,
 	})
@@ -73,7 +81,9 @@ func (c *Client) GetOccurrences(resourceURI string) ([]*grafeas.Occurrence, erro
 		}
 	}
 
-	return occurrences, nil
+	return &grafeas.ListOccurrencesResponse{
+		Occurrences: occurrences,
+	}, nil
 }
 
 // PutOccurrences will save the occurence in grafeas
@@ -85,7 +95,7 @@ func (c *Client) PutOccurrences(occurrences ...*grafeas.Occurrence) error {
 
 	_, err := c.grafeasClient.BatchCreateOccurrences(ctx, &grafeas.BatchCreateOccurrencesRequest{
 		Occurrences: occurrences,
-		Parent:      fmt.Sprintf("projects/%s", projectId),
+		Parent:      fmt.Sprintf("projects/%s", projectID),
 	})
 	if err != nil {
 		c.logger.Errorf("Unable to put occurrence %v", err)
@@ -109,7 +119,6 @@ func (c *Client) PutOccurrences(occurrences ...*grafeas.Occurrence) error {
 }
 
 func (c *Client) attemptAttestation(resourceURI string) error {
-	c.logger.Infof("Attesting resource %s", resourceURI)
 	ctx := context.TODO()
 	uriOccurrences, err := c.GetOccurrences(resourceURI)
 	if err != nil {
@@ -117,21 +126,50 @@ func (c *Client) attemptAttestation(resourceURI string) error {
 		return err
 	}
 
-	var pass bool
-
-	// TODO: call OPA
-	pass = len(uriOccurrences) > 0
+	// TODO: load from attester configs
+	attesterName := "default_attester"
 
 	// TODO: load from attester configs
-	attesterName := "opa"
+	attesterRego := `
+package default_attester
 
-	if pass {
+violation[{"msg":"analysis failed"}]{
+	input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
+}
+violation[{"msg":"analysis not performed"}]{
+	analysisStatus := [s | s := input.occurrences[_].discovered.discovered.analysisStatus]
+	count(analysisStatus) = 0
+}
+violation[{"msg":"critical vulnerability found"}]{
+	severityCount("CRITICAL") > 0
+}
+violation[{"msg":"high vulnerability found"}]{
+	severityCount("HIGH") > 10
+}
+severityCount(severity) = cnt {
+	cnt := count([v | v := input.occurrences[_].vulnerability.severity; v == severity])
+}
+`
+
+	input := make(map[string]interface{})
+	err = messageToMap(&input, uriOccurrences)
+	if err != nil {
+		c.logger.Errorf("Unable to prepare input for attestation of occurrence %v", err)
+		return err
+	}
+	violations := c.policyEvaluator.Evaluate(attesterName, attesterRego, input)
+
+	if len(violations) > 0 {
+		c.logger.Infof("Unable to attest resource %s violations=%v", resourceURI, violations)
+	} else {
+		c.logger.Infof("Attesting resource %s", resourceURI)
+
 		// TODO: sign the resourceURI
 		sig := resourceURI
 		keyID := attesterName
 
 		attestOccurrence := &grafeas.Occurrence{}
-		attestOccurrence.NoteName = fmt.Sprintf("projects/%s/notes/%s", projectId, attesterName)
+		attestOccurrence.NoteName = fmt.Sprintf("projects/%s/notes/%s", projectID, attesterName)
 		attestOccurrence.Resource = &grafeas.Resource{Uri: resourceURI}
 		attestOccurrence.Details = &grafeas.Occurrence_Attestation{
 			Attestation: &attestation.Details{
@@ -150,7 +188,7 @@ func (c *Client) attemptAttestation(resourceURI string) error {
 		}
 		_, err := c.grafeasClient.CreateOccurrence(ctx, &grafeas.CreateOccurrenceRequest{
 			Occurrence: attestOccurrence,
-			Parent:     fmt.Sprintf("projects/%s", projectId),
+			Parent:     fmt.Sprintf("projects/%s", projectID),
 		})
 		if err != nil {
 			c.logger.Errorf("Unable to store attestation for occurrence %v", err)
@@ -218,4 +256,18 @@ func newGRPCDialOption(logger *zap.SugaredLogger) (grpc.DialOption, error) {
 	tlsConfig.BuildNameToCertificate()
 	creds := credentials.NewTLS(tlsConfig)
 	return grpc.WithTransportCredentials(creds), nil
+}
+
+func messageToJSON(jsonWriter io.Writer, pb proto.Message) error {
+	marshaler := &jsonpb.Marshaler{}
+	return marshaler.Marshal(jsonWriter, pb)
+}
+
+func messageToMap(destMap *map[string]interface{}, pb proto.Message) error {
+	buf := new(bytes.Buffer)
+	err := messageToJSON(buf, pb)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(buf.Bytes(), destMap)
 }

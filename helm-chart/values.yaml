@@ -42,7 +42,7 @@ rbac:
 container:
   port: 8080
 service:
-  port: 8080
+  port: 8000
 
 livenessProbe:
   failureThreshold: 3

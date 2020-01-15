@@ -292,11 +292,11 @@ func (i *ecrIngester) getVulnerabilityDetails(detail *ECRImageScanDetail) []*gra
 					PackageIssue: []*vulnerability.PackageIssue{
 						&vulnerability.PackageIssue{
 							AffectedLocation: &vulnerability.VulnerabilityLocation{
-								CpeUri:  "foo",
-								Package: "foo",
+								CpeUri:  "TODO",
+								Package: "TODO",
 								Version: &packag.Version{
 									Kind: packag.Version_NORMAL,
-									Name: "foo",
+									Name: "TODO",
 								},
 							},
 						},

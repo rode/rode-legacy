@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	ginzap "github.com/gin-contrib/zap"
@@ -16,6 +17,7 @@ import (
 	"github.com/liatrio/rode/pkg/ctx"
 	"github.com/liatrio/rode/pkg/grafeas"
 	"github.com/liatrio/rode/pkg/logger"
+	"github.com/liatrio/rode/pkg/opa"
 	"github.com/liatrio/rode/pkg/signals"
 )
 
@@ -36,11 +38,14 @@ func main() {
 	}
 
 	grafeasEndpoint := os.Getenv("GRAFEAS_ENDPOINT")
+	opaTrace, _ := strconv.ParseBool(os.Getenv("OPA_TRACE"))
+	opa := opa.NewClient(logger, opaTrace)
 	context := ctx.NewContext().
 		WithLogger(logger).
 		WithRouter(startServer(logger.Desugar())).
 		WithAWSConfig(aws.NewAWSConfig(logger)).
-		WithGrafeas(grafeas.NewClient(logger, grafeasEndpoint))
+		WithOPA(opa).
+		WithGrafeas(grafeas.NewClient(logger, opa, grafeasEndpoint))
 
 	c := controller.NewController(context)
 
