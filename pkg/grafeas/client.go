@@ -12,6 +12,8 @@ import (
 	"os"
 	"regexp"
 
+	"github.com/liatrio/rode/pkg/gpg"
+
 	"google.golang.org/grpc/codes"
 
 	"github.com/gogo/protobuf/jsonpb"
@@ -164,9 +166,18 @@ severityCount(severity) = cnt {
 	} else {
 		c.logger.Infof("Attesting resource %s", resourceURI)
 
-		// TODO: sign the resourceURI
-		sig := resourceURI
-		keyID := attesterName
+		// TODO: load from attester configs
+		signer, err := gpg.NewSigner(attesterName)
+		if err != nil {
+			c.logger.Errorf("Error loading signer %v", err)
+			return err
+		}
+
+		sig, err := signer.Sign(resourceURI)
+		if err != nil {
+			c.logger.Errorf("Error signing resourceURI %v", err)
+			return err
+		}
 
 		attestOccurrence := &grafeas.Occurrence{}
 		attestOccurrence.NoteName = fmt.Sprintf("projects/%s/notes/%s", projectID, attesterName)
@@ -179,14 +190,15 @@ severityCount(severity) = cnt {
 							ContentType: attestation.PgpSignedAttestation_CONTENT_TYPE_UNSPECIFIED,
 							Signature:   sig,
 							KeyId: &attestation.PgpSignedAttestation_PgpKeyId{
-								PgpKeyId: keyID,
+								PgpKeyId: signer.KeyID(),
 							},
 						},
 					},
 				},
 			},
 		}
-		_, err := c.grafeasClient.CreateOccurrence(ctx, &grafeas.CreateOccurrenceRequest{
+		c.logger.Infof("Attestation: %v", attestOccurrence)
+		_, err = c.grafeasClient.CreateOccurrence(ctx, &grafeas.CreateOccurrenceRequest{
 			Occurrence: attestOccurrence,
 			Parent:     fmt.Sprintf("projects/%s", projectID),
 		})
