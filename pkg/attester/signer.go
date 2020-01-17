@@ -1,4 +1,4 @@
-package gpg
+package attester
 
 import (
 	"bytes"
@@ -7,9 +7,8 @@ import (
 	"io"
 	"io/ioutil"
 
-	"golang.org/x/crypto/openpgp/packet"
-
 	"golang.org/x/crypto/openpgp"
+	"golang.org/x/crypto/openpgp/packet"
 )
 
 type signer struct {

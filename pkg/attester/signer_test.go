@@ -1,4 +1,4 @@
-package gpg
+package attester
 
 import (
 	"testing"

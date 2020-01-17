@@ -1,13 +1,6 @@
-package common
+package attester
 
-import (
-	"fmt"
-)
-
-// PolicyEvaluator runs policy
-type PolicyEvaluator interface {
-	Evaluate(moduleName string, moduleBody string, input interface{}) []*Violation
-}
+import "fmt"
 
 // Violation describes a violation
 type Violation struct {

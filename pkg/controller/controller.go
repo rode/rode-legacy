@@ -1,72 +1,79 @@
 package controller
 
 import (
-	"io"
-	"strings"
-	"time"
+	"context"
+	"fmt"
+	"strconv"
 
-	"github.com/golang/protobuf/jsonpb"
-
-	"github.com/gin-gonic/gin"
-	"github.com/liatrio/rode/pkg/ctx"
-	"github.com/liatrio/rode/pkg/ingester"
+	"github.com/liatrio/rode/pkg/attester"
+	"github.com/liatrio/rode/pkg/aws"
+	"github.com/liatrio/rode/pkg/occurrence"
+	"go.uber.org/zap"
 )
 
-// Controller is the main control loop for rode
+// Controller is main entry
 type Controller struct {
-	ctx.Context
+	attesters       []attester.Attester
+	logger          *zap.SugaredLogger
+	opaTrace        bool
+	grafeasEndpoint string
 }
 
-// NewController creates a new controller instance
-func NewController(
-	context *ctx.Context,
-) *Controller {
-	context.Logger.Debug("Creating new controller")
-	ctrl := &Controller{
-		*context,
+// Option is interface to configure controller
+type Option func(c *Controller)
+
+// New creates a new controller
+func New(options ...Option) *Controller {
+	c := new(Controller)
+	c.attesters = make([]attester.Attester, 0, 0)
+
+	for _, option := range options {
+		option(c)
 	}
-	marshaler := &jsonpb.Marshaler{}
-	context.Router.GET("/occurrences/*resource", func(c *gin.Context) {
-		resourceURI := strings.TrimPrefix(c.Param("resource"), "/")
-		o, err := context.Grafeas.GetOccurrences(resourceURI)
-		if err != nil {
-			c.AbortWithError(400, err)
-		} else {
-			c.Stream(func(w io.Writer) bool {
-				err := marshaler.Marshal(w, o)
-				if err != nil {
-					context.Logger.Errorf("Unable to stream pb", err)
-				}
-				return false
-			})
-		}
-	})
-	return ctrl
+	return c
 }
 
-// Run will begin the control loop for rode
-func (c *Controller) Run(stopCh <-chan struct{}) error {
-	running := true
-	go func() {
-		ingesters := make([]ingester.Ingester, 0, 0)
-		for running {
-			// TODO: pull the list of ingesters from CRs...
-			if len(ingesters) == 0 {
-				ingesters = append(ingesters, ingester.NewEcrEventIngester(&c.Context))
-			}
+// WithLogger configures logger for
+func WithLogger(logger *zap.SugaredLogger) Option {
+	return func(c *Controller) {
+		c.logger = logger
+	}
+}
 
-			for _, ingester := range ingesters {
-				err := ingester.Reconcile()
-				if err != nil {
-					c.Logger.Error(err)
-				}
-			}
+// WithOPATrace configures tracing for OPA
+func WithOPATrace(enabled string) Option {
+	opaTrace, _ := strconv.ParseBool(enabled)
+	return func(c *Controller) {
+		c.opaTrace = opaTrace
+	}
+}
 
-			time.Sleep(15 * time.Second)
-		}
-	}()
+// WithGrafeasEndpoint controls the endpoint for grafeas
+func WithGrafeasEndpoint(endpoint string) Option {
+	return func(c *Controller) {
+		c.grafeasEndpoint = endpoint
+	}
+}
 
-	<-stopCh
-	running = false
+// Start the controller
+func (c *Controller) Start(ctx context.Context) error {
+	err := StartAttesters(ctx, c.logger, c.opaTrace, &c.attesters)
+	if err != nil {
+		return fmt.Errorf("Error starting attester: %v", err)
+	}
+
+	awsConfig := aws.NewAWSConfig(c.logger)
+	grafeasClient := occurrence.NewGrafeasClient(c.logger, c.grafeasEndpoint)
+	occurrenceCreator := attester.NewAttestWrapper(c.logger, grafeasClient, grafeasClient, c.attesters)
+
+	err = StartCollectors(ctx, c.logger, awsConfig, occurrenceCreator)
+	if err != nil {
+		return fmt.Errorf("Error starting collectors: %v", err)
+	}
+
+	err = StartAPI(ctx, c.logger, grafeasClient)
+	if err != nil {
+		return fmt.Errorf("Error starting APIs: %v", err)
+	}
 	return nil
 }

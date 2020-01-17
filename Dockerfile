@@ -22,7 +22,7 @@ RUN go mod verify
 ADD cmd ./cmd
 ADD pkg ./pkg
 ENV GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-RUN go build -ldflags="-w -s" -o ./bin/rode-ingester ./cmd/ingester/* 
+RUN go build -ldflags="-w -s" -o ./bin/rode-collector ./cmd/collector/* 
 
 ########################
 # STEP 2 build the image
@@ -34,9 +34,9 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /etc/passwd /etc/passwd
 
 # Copy our static executable
-COPY --from=builder /app/bin/rode-ingester /bin/rode-ingester
+COPY --from=builder /app/bin/rode-collector /bin/rode-collector
 
 # Use an unprivileged user.
 USER appuser
 
-ENTRYPOINT [ "/bin/rode-ingester" ]
+ENTRYPOINT [ "/bin/rode-collector" ]

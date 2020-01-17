@@ -1,6 +1,7 @@
-package ingester
+package collector
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -11,46 +12,44 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/gin-gonic/gin"
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	packag "github.com/grafeas/grafeas/proto/v1beta1/package_go_proto"
 	vulnerability "github.com/grafeas/grafeas/proto/v1beta1/vulnerability_go_proto"
-	"github.com/liatrio/rode/pkg/ctx"
+	"github.com/liatrio/rode/pkg/occurrence"
 )
 
 const path = "/ecr-healthz"
 
-type ecrIngester struct {
-	ctx.Context
-	queueURL     string
-	queueARN     string
-	ruleComplete bool
+type ecrCollector struct {
+	logger            *zap.SugaredLogger
+	awsConfig         *aws.Config
+	queueName         string
+	queueURL          string
+	queueARN          string
+	ruleComplete      bool
+	occurrenceCreator occurrence.Creator
 }
 
-// NewEcrEventIngester will create an ingester of ECR events from Cloud watch
-func NewEcrEventIngester(context *ctx.Context) Ingester {
-	return &ecrIngester{
-		*context,
+// NewEcrEventCollector will create an collector of ECR events from Cloud watch
+func NewEcrEventCollector(logger *zap.SugaredLogger, awsConfig *aws.Config, occurrenceCreator occurrence.Creator, queueName string) Collector {
+	return &ecrCollector{
+		logger,
+		awsConfig,
+		queueName,
 		"",
 		"",
 		false,
+		occurrenceCreator,
 	}
 }
 
-func (i *ecrIngester) Reconcile() error {
-	// TODO: pull the queue name from config provided by ingester CRD
-	queueName := "rode-ecr-event-ingester"
-
-	err := i.reconcileRoutes()
+func (i *ecrCollector) Reconcile(ctx context.Context) error {
+	err := i.reconcileSQS(ctx)
 	if err != nil {
 		return err
 	}
-	err = i.reconcileSQS(queueName)
-	if err != nil {
-		return err
-	}
-	err = i.reconcileCWEvent(queueName)
+	err = i.reconcileCWEvent(ctx)
 	if err != nil {
 		return err
 	}
@@ -58,44 +57,23 @@ func (i *ecrIngester) Reconcile() error {
 	return nil
 }
 
-func (i *ecrIngester) reconcileRoutes() error {
-	routes := i.Router.Routes()
-	registered := false
-	for _, route := range routes {
-		if route.Path == path {
-			registered = true
-			break
-		}
-	}
-
-	if !registered {
-		i.Logger.Infof("Registering path '%s'", path)
-		i.Router.GET(path, func(c *gin.Context) {
-			c.JSON(200, gin.H{
-				"status": "healthy",
-			})
-		})
-	}
-	return nil
-}
-
-func (i *ecrIngester) reconcileCWEvent(queueName string) error {
+func (i *ecrCollector) reconcileCWEvent(ctx context.Context) error {
 	if i.ruleComplete {
 		return nil
 	}
-	session := session.Must(session.NewSession(i.AWSConfig))
+	session := session.Must(session.NewSession(i.awsConfig))
 	svc := cloudwatchevents.New(session)
 	sqsSvc := sqs.New(session)
 	req, ruleResp := svc.PutRuleRequest(&cloudwatchevents.PutRuleInput{
-		Name:         aws.String(queueName),
+		Name:         aws.String(i.queueName),
 		EventPattern: aws.String(`{"source":["aws.ecr"],"detail-type":["ECR Image Action","ECR Image Scan"]}`),
 	})
-	i.Logger.Infof("Putting CW Event rule %s", queueName)
+	i.logger.Infof("Putting CW Event rule %s", i.queueName)
 	err := req.Send()
 	if err != nil {
 		return err
 	}
-	i.Logger.Infof("Setting queue policy %s -> %s", i.queueARN, aws.StringValue(ruleResp.RuleArn))
+	i.logger.Infof("Setting queue policy %s -> %s", i.queueARN, aws.StringValue(ruleResp.RuleArn))
 	req, _ = sqsSvc.SetQueueAttributesRequest(&sqs.SetQueueAttributesInput{
 		QueueUrl: aws.String(i.queueURL),
 		Attributes: map[string]*string{
@@ -125,12 +103,12 @@ func (i *ecrIngester) reconcileCWEvent(queueName string) error {
 		return err
 	}
 
-	i.Logger.Infof("Putting CW Event rule target %s -> %s", queueName, i.queueARN)
+	i.logger.Infof("Putting CW Event rule target %s -> %s", i.queueName, i.queueARN)
 	req, resp := svc.PutTargetsRequest(&cloudwatchevents.PutTargetsInput{
-		Rule: aws.String(queueName),
+		Rule: aws.String(i.queueName),
 		Targets: []*cloudwatchevents.Target{
 			&cloudwatchevents.Target{
-				Id:  aws.String("RodeIngester"),
+				Id:  aws.String("RodeCollector"),
 				Arn: aws.String(i.queueARN),
 			},
 		},
@@ -140,29 +118,29 @@ func (i *ecrIngester) reconcileCWEvent(queueName string) error {
 		return err
 	}
 	if aws.Int64Value(resp.FailedEntryCount) > 0 {
-		i.Logger.Errorf("Failures with putting event targets %+v", resp)
+		i.logger.Errorf("Failures with putting event targets %+v", resp)
 	} else {
 		i.ruleComplete = true
 	}
 	return nil
 }
 
-func (i *ecrIngester) reconcileSQS(queueName string) error {
+func (i *ecrCollector) reconcileSQS(ctx context.Context) error {
 	if i.queueURL != "" {
 		return nil
 	}
 
-	session := session.Must(session.NewSession(i.AWSConfig))
+	session := session.Must(session.NewSession(i.awsConfig))
 	svc := sqs.New(session)
 	req, resp := svc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
-		QueueName: aws.String(queueName),
+		QueueName: aws.String(i.queueName),
 	})
 	err := req.Send()
 	var queueURL string
 	if err != nil || resp.QueueUrl == nil {
-		i.Logger.Infof("Creating new SQS queue %s", queueName)
+		i.logger.Infof("Creating new SQS queue %s", i.queueName)
 		req, createResp := svc.CreateQueueRequest(&sqs.CreateQueueInput{
-			QueueName: aws.String(queueName),
+			QueueName: aws.String(i.queueName),
 		})
 		err = req.Send()
 		if err != nil {
@@ -183,14 +161,14 @@ func (i *ecrIngester) reconcileSQS(queueName string) error {
 	err = req.Send()
 	i.queueARN = aws.StringValue(attrResp.Attributes["QueueArn"])
 
-	go i.watchQueue()
+	go i.watchQueue(ctx)
 	return nil
 }
 
-func (i *ecrIngester) watchQueue() {
-	i.Logger.Infof("Watching Queue: %s", i.queueURL)
+func (i *ecrCollector) watchQueue(ctx context.Context) {
+	i.logger.Infof("Watching Queue: %s", i.queueURL)
 	session := session.Must(session.NewSession())
-	svc := sqs.New(session, i.AWSConfig)
+	svc := sqs.New(session, i.awsConfig)
 	for i.queueURL != "" {
 		req, resp := svc.ReceiveMessageRequest(&sqs.ReceiveMessageInput{
 			QueueUrl:          aws.String(i.queueURL),
@@ -200,18 +178,18 @@ func (i *ecrIngester) watchQueue() {
 
 		err := req.Send()
 		if err != nil {
-			i.Logger.Error(err)
+			i.logger.Error(err)
 			return
 		}
 
 		for _, msg := range resp.Messages {
 			body := aws.StringValue(msg.Body)
 
-			if i.Logger.Desugar().Core().Enabled(zap.DebugLevel) {
+			if i.logger.Desugar().Core().Enabled(zap.DebugLevel) {
 				rawJSON := json.RawMessage(body)
 				prettyJSON, err := json.MarshalIndent(rawJSON, "", "  ")
 				if err != nil {
-					i.Logger.Errorf("Unable to generate JSON", err)
+					i.logger.Errorf("Unable to generate JSON", err)
 				}
 				fmt.Println(string(prettyJSON))
 			}
@@ -219,7 +197,7 @@ func (i *ecrIngester) watchQueue() {
 			event := &CloudWatchEvent{}
 			err = json.Unmarshal([]byte(body), event)
 			if err != nil {
-				i.Logger.Error(err)
+				i.logger.Error(err)
 			}
 
 			var occurrences []*grafeas.Occurrence
@@ -228,20 +206,20 @@ func (i *ecrIngester) watchQueue() {
 				details := &ECRImageActionDetail{}
 				err = json.Unmarshal(event.Detail, details)
 				if err != nil {
-					i.Logger.Error(err)
+					i.logger.Error(err)
 				}
 				occurrences = i.newImageActionOccurrences(event, details)
 			case "ECR Image Scan":
 				details := &ECRImageScanDetail{}
 				err = json.Unmarshal(event.Detail, details)
 				if err != nil {
-					i.Logger.Error(err)
+					i.logger.Error(err)
 				}
 				occurrences = i.newImageScanOccurrences(event, details)
 			}
-			err = i.Grafeas.PutOccurrences(occurrences...)
+			err = i.occurrenceCreator.CreateOccurrences(ctx, occurrences...)
 			if err != nil {
-				i.Logger.Error(err)
+				i.logger.Error(err)
 			}
 
 			delReq, _ := svc.DeleteMessageRequest(&sqs.DeleteMessageInput{
@@ -250,25 +228,22 @@ func (i *ecrIngester) watchQueue() {
 			})
 			err = delReq.Send()
 			if err != nil {
-				i.Logger.Error(err)
+				i.logger.Error(err)
 			}
 		}
 	}
 }
 
-func newImageScanOccurrence(event *CloudWatchEvent, detail *ECRImageScanDetail, tag string) *grafeas.Occurrence {
-	// TODO: load this from the ingester configs
-	ingesterName := "ecr_events"
-
+func newImageScanOccurrence(event *CloudWatchEvent, detail *ECRImageScanDetail, tag string, noteName string) *grafeas.Occurrence {
 	o := &grafeas.Occurrence{}
-	o.NoteName = fmt.Sprintf("projects/%s/notes/%s", "rode", ingesterName)
+	o.NoteName = fmt.Sprintf("projects/%s/notes/%s", "rode", noteName)
 	o.Resource = &grafeas.Resource{
 		Uri: fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s@%s", event.AccountID, event.Region, detail.RepositoryName, tag, detail.ImageDigest),
 	}
 	return o
 }
 
-func (i *ecrIngester) getVulnerabilityDetails(detail *ECRImageScanDetail) []*grafeas.Occurrence_Vulnerability {
+func (i *ecrCollector) getVulnerabilityDetails(detail *ECRImageScanDetail) []*grafeas.Occurrence_Vulnerability {
 	// TODO: load from ecr scan results
 	vulnerabilityDetails := make([]*grafeas.Occurrence_Vulnerability, 0, 0)
 	for k, v := range detail.FindingsSeverityCounts {
@@ -308,7 +283,7 @@ func (i *ecrIngester) getVulnerabilityDetails(detail *ECRImageScanDetail) []*gra
 	}
 	return vulnerabilityDetails
 }
-func (i *ecrIngester) newImageScanOccurrences(event *CloudWatchEvent, detail *ECRImageScanDetail) []*grafeas.Occurrence {
+func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *ECRImageScanDetail) []*grafeas.Occurrence {
 	tags := detail.ImageTags
 	if len(tags) == 0 {
 		tags = []string{"latest"}
@@ -332,12 +307,12 @@ func (i *ecrIngester) newImageScanOccurrences(event *CloudWatchEvent, detail *EC
 
 	occurrences := make([]*grafeas.Occurrence, 0, 0)
 	for _, tag := range tags {
-		o := newImageScanOccurrence(event, detail, tag)
+		o := newImageScanOccurrence(event, detail, tag, i.queueName)
 		o.Details = discoveryDetails
 		occurrences = append(occurrences, o)
 
 		for _, v := range vulnerabilityDetails {
-			o = newImageScanOccurrence(event, detail, tag)
+			o = newImageScanOccurrence(event, detail, tag, i.queueName)
 			o.Details = v
 			occurrences = append(occurrences, o)
 		}
@@ -347,7 +322,7 @@ func (i *ecrIngester) newImageScanOccurrences(event *CloudWatchEvent, detail *EC
 func newImageActionOccurrence(event *CloudWatchEvent, detail *ECRImageActionDetail) *grafeas.Occurrence {
 	return nil
 }
-func (i *ecrIngester) newImageActionOccurrences(event *CloudWatchEvent, detail *ECRImageActionDetail) []*grafeas.Occurrence {
+func (i *ecrCollector) newImageActionOccurrences(event *CloudWatchEvent, detail *ECRImageActionDetail) []*grafeas.Occurrence {
 	return nil
 }
 

@@ -1,17 +1,16 @@
-package opa
+package attester
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
-	"github.com/liatrio/rode/pkg/common"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func TestClient_Evaluate(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	c := NewClient(logger.Sugar(), true)
+	assert := assert.New(t)
+	ctx := context.Background()
 
 	module := `
 package mytest
@@ -23,14 +22,15 @@ violation[{"msg": "v2"}] {
 	input.a = "z"
 }
 `
-	assert := assert.New(t)
+	c, err := NewPolicy("mytest", module, true)
+	assert.NoError(err)
 
 	input := map[string]string{
 		"foo": "no",
 		"a":   "no",
 	}
 
-	res := c.Evaluate("mytest", module, input)
+	res := c.Evaluate(ctx, input)
 	assert.Empty(res, "evaluation")
 
 	input2 := map[string]string{
@@ -38,7 +38,7 @@ violation[{"msg": "v2"}] {
 		"a":   "z",
 	}
 
-	res = c.Evaluate("mytest", module, input2)
+	res = c.Evaluate(ctx, input2)
 	assert.NotEmpty(res, "evaluation")
 }
 
@@ -209,13 +209,16 @@ func TestClient_EvaluateGrafeas(t *testing.T) {
 	assert.Empty(res, "evaluation")
 }
 
-func evalAttenstationRego(occurrencesJSON string) []*common.Violation {
-	logger, _ := zap.NewDevelopment()
-	c := NewClient(logger.Sugar(), true)
-	listOccurrences := make(map[string]interface{})
-	err := json.Unmarshal([]byte(occurrencesJSON), &listOccurrences)
+func evalAttenstationRego(occurrencesJSON string) []*Violation {
+	ctx := context.Background()
+	c, err := NewPolicy("default_attester", attenstationRego, true)
 	if err != nil {
 		panic(err)
 	}
-	return c.Evaluate("default_attester", attenstationRego, listOccurrences)
+	listOccurrences := make(map[string]interface{})
+	err = json.Unmarshal([]byte(occurrencesJSON), &listOccurrences)
+	if err != nil {
+		panic(err)
+	}
+	return c.Evaluate(ctx, listOccurrences)
 }
