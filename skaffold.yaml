@@ -2,16 +2,16 @@ apiVersion: skaffold/v2alpha1
 kind: Config
 build:
   artifacts:
-  - image: rode
+  - image: liatrio/rode
 deploy:
   helm:
     releases:
       - name: rode
-        chartPath: helm-chart
+        chartPath: helm-chart/rode
         skipBuildDependencies: true
         wait: true
         values:
-          image: rode
+          image: liatrio/rode
         imageStrategy:
           helm: {}
 portForward:
