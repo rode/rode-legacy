@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/liatrio/rode/pkg/controller"
 	"github.com/liatrio/rode/pkg/logger"
@@ -31,6 +32,7 @@ func main() {
 		controller.WithLogger(logger),
 		controller.WithOPATrace(os.Getenv("OPA_TRACE")),
 		controller.WithGrafeasEndpoint(os.Getenv("GRAFEAS_ENDPOINT")),
+		controller.WithExcludeNS(strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")),
 	)
 
 	ctx := signals.WithSignalCancel(context.Background())

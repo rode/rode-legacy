@@ -30,6 +30,12 @@ image:
   tag: ""
   pullPolicy: IfNotPresent
 
+enforcer:
+  enabled: true
+  namespaceLabel: "liatr.io/rode"
+  excludedNamespaces:
+  - kube-system
+
 region: us-east-1
 ginMode: release
 extraEnv: []
@@ -40,9 +46,9 @@ rbac:
   serviceAccountAnnotations: {}
 
 container:
-  port: 8080
+  port: 4000
 service:
-  port: 8000
+  port: 443
 
 livenessProbe:
   failureThreshold: 3

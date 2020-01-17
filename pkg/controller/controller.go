@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/liatrio/rode/pkg/enforcer"
+
 	"github.com/liatrio/rode/pkg/attester"
 	"github.com/liatrio/rode/pkg/aws"
 	"github.com/liatrio/rode/pkg/occurrence"
@@ -17,6 +19,7 @@ type Controller struct {
 	logger          *zap.SugaredLogger
 	opaTrace        bool
 	grafeasEndpoint string
+	excludeNS       []string
 }
 
 // Option is interface to configure controller
@@ -55,6 +58,13 @@ func WithGrafeasEndpoint(endpoint string) Option {
 	}
 }
 
+// WithExcludeNS controls the namespace to exclude from enforcer
+func WithExcludeNS(excludeNS []string) Option {
+	return func(c *Controller) {
+		c.excludeNS = excludeNS
+	}
+}
+
 // Start the controller
 func (c *Controller) Start(ctx context.Context) error {
 	err := StartAttesters(ctx, c.logger, c.opaTrace, &c.attesters)
@@ -71,7 +81,9 @@ func (c *Controller) Start(ctx context.Context) error {
 		return fmt.Errorf("Error starting collectors: %v", err)
 	}
 
-	err = StartAPI(ctx, c.logger, grafeasClient)
+	enforcer := enforcer.NewEnforcer(c.logger, c.excludeNS, c.attesters, grafeasClient)
+
+	err = StartAPI(ctx, c.logger, grafeasClient, enforcer)
 	if err != nil {
 		return fmt.Errorf("Error starting APIs: %v", err)
 	}

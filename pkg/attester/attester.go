@@ -46,6 +46,10 @@ type AttestResponse struct {
 	Attestation *grafeas.Occurrence
 }
 
+func (a *attester) String() string {
+	return a.name
+}
+
 func (a *attester) Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error) {
 	// prepare the input
 	input := new(occurrenceInput)
@@ -97,6 +101,9 @@ type VerifyRequest struct {
 }
 
 func (a *attester) Verify(ctx context.Context, req *VerifyRequest) error {
+	if req.Occurrence == nil || req.Occurrence.GetAttestation() == nil {
+		return fmt.Errorf("Occurrence is not an attestation")
+	}
 	if a.signer.KeyID() != req.Occurrence.GetAttestation().GetAttestation().GetPgpSignedAttestation().GetPgpKeyId() {
 		return fmt.Errorf("Invalid keyID")
 	}

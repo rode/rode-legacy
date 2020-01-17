@@ -42,14 +42,16 @@ spec:
               value: /certificates/tls.crt
             - name: TLS_CLIENT_KEY
               value: /certificates/tls.key
+            - name: EXCLUDED_NAMESPACES
+              value: {{ .Values.enforcer.excludedNamespaces | join "," }}
           {{- with .Values.extraEnv }}
 {{ toYaml . | indent 12 }}
           {{- end }}
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 8080
-              scheme: HTTP
+              port: {{ .Values.container.port}}
+              scheme: HTTPS
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -58,8 +60,8 @@ spec:
           readinessProbe:
             httpGet:
               path: /healthz
-              port: 8080
-              scheme: HTTP
+              port: {{ .Values.container.port}}
+              scheme: HTTPS
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
