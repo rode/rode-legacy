@@ -53,6 +53,10 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 	if err != nil {
 		return fmt.Errorf("Unable to get namespace: %v", err)
 	}
+	resultAnnotations := result.ObjectMeta.Annotations
+	if resultAnnotations == nil {
+		return nil
+	}
 	enforcedAttesters := strings.SplitN(result.ObjectMeta.Annotations["rode.liatr.io/enforce-attesters"],",", -1)
 	enforcedAttestersMap := make(map[string]bool)
 	for _, att := range enforcedAttesters {
