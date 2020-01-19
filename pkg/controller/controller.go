@@ -11,6 +11,8 @@ import (
 	"github.com/liatrio/rode/pkg/aws"
 	"github.com/liatrio/rode/pkg/occurrence"
 	"go.uber.org/zap"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 )
 
 // Controller is main entry
@@ -67,7 +69,16 @@ func WithExcludeNS(excludeNS []string) Option {
 
 // Start the controller
 func (c *Controller) Start(ctx context.Context) error {
-	err := StartAttesters(ctx, c.logger, c.opaTrace, &c.attesters)
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("Error creating kubernetes config: %v", err)
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return fmt.Errorf("Error creating kubernetes clientset: %v", err)
+	}
+
+	err = StartAttesters(ctx, c.logger, c.opaTrace, &c.attesters)
 	if err != nil {
 		return fmt.Errorf("Error starting attester: %v", err)
 	}
@@ -81,7 +92,7 @@ func (c *Controller) Start(ctx context.Context) error {
 		return fmt.Errorf("Error starting collectors: %v", err)
 	}
 
-	enforcer := enforcer.NewEnforcer(c.logger, c.excludeNS, c.attesters, grafeasClient)
+	enforcer := enforcer.NewEnforcer(c.logger, c.excludeNS, c.attesters, grafeasClient, clientset)
 
 	err = StartAPI(ctx, c.logger, grafeasClient, enforcer)
 	if err != nil {

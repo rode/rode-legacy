@@ -10,10 +10,8 @@ import (
 	"github.com/liatrio/rode/pkg/attester"
 
 	"go.uber.org/zap"
-	//apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 // Enforcer enforces attestations on a resource
@@ -26,15 +24,17 @@ type enforcer struct {
 	excludeNS        []string
 	attesters        []attester.Attester
 	occurrenceLister occurrence.Lister
+	clientset        *kubernetes.Clientset
 }
 
 // NewEnforcer creates an enforcer
-func NewEnforcer(logger *zap.SugaredLogger, excludeNS []string, attesters []attester.Attester, occurrenceLister occurrence.Lister) Enforcer {
+func NewEnforcer(logger *zap.SugaredLogger, excludeNS []string, attesters []attester.Attester, occurrenceLister occurrence.Lister, clientset *kubernetes.Clientset) Enforcer {
 	return &enforcer{
 		logger,
 		excludeNS,
 		attesters,
 		occurrenceLister,
+		clientset,
 	}
 }
 
@@ -48,26 +48,17 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 
 	e.logger.Debugf("About to enforce resource '%s' in namespace '%s'", resourceURI, namespace)
 
-	// TODO: load namespace to look for annotations describing which attesters to enforce
-	config, err := rest.InClusterConfig()
+	// Begin: Determine enforced attesters
+	result, err := e.clientset.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
 	if err != nil {
-		panic(err.Error())
-	}
-	// creates the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-  result, err := clientset.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
-	if err != nil {
-		panic(err.Error())
+		return fmt.Errorf("Unable to get namespace: %v", err)
 	}
 	enforcedAttesters := strings.SplitN(result.ObjectMeta.Annotations["rode.liatr.io/enforce-attesters"],",", -1)
 	enforcedAttestersMap := make(map[string]bool)
 	for _, att := range enforcedAttesters {
 		enforcedAttestersMap[att] = true
 	}
-	// End annotation check
+	// End: Determine enforced attesters
 	occurrenceList, err := e.occurrenceLister.ListOccurrences(ctx, resourceURI)
 	if err != nil {
 		return err
