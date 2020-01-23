@@ -9,6 +9,8 @@ import (
 	"github.com/liatrio/rode/pkg/attester"
 
 	"go.uber.org/zap"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 )
 
 // Enforcer enforces attestations on a resource
@@ -21,15 +23,17 @@ type enforcer struct {
 	excludeNS        []string
 	attesters        []attester.Attester
 	occurrenceLister occurrence.Lister
+	clientset        *kubernetes.Clientset
 }
 
 // NewEnforcer creates an enforcer
-func NewEnforcer(logger *zap.SugaredLogger, excludeNS []string, attesters []attester.Attester, occurrenceLister occurrence.Lister) Enforcer {
+func NewEnforcer(logger *zap.SugaredLogger, excludeNS []string, attesters []attester.Attester, occurrenceLister occurrence.Lister, clientset *kubernetes.Clientset) Enforcer {
 	return &enforcer{
 		logger,
 		excludeNS,
 		attesters,
 		occurrenceLister,
+		clientset,
 	}
 }
 
@@ -43,13 +47,25 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 
 	e.logger.Debugf("About to enforce resource '%s' in namespace '%s'", resourceURI, namespace)
 
-	// TODO: load namespace to look for annotations describing which attesters to enforce
-
+	// Begin: Determine enforced attesters
+	result, err := e.clientset.CoreV1().Namespaces().Get(namespace, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("Unable to get namespace: %v", err)
+	}
+	resultLabels := result.ObjectMeta.Labels
+	if resultLabels == nil {
+		return nil
+	}
+	enforcedAttesters := resultLabels["rode.liatr.io/enforce-attesters"]
+	// End: Determine enforced attesters
 	occurrenceList, err := e.occurrenceLister.ListOccurrences(ctx, resourceURI)
 	if err != nil {
 		return err
 	}
 	for _, att := range e.attesters {
+		if enforcedAttesters != "*" && enforcedAttesters != att.String() {
+			continue
+		}
 		attested := false
 		for _, occ := range occurrenceList.GetOccurrences() {
 			req := &attester.VerifyRequest{

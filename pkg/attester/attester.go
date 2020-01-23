@@ -33,6 +33,7 @@ func NewAttester(name string, policy Policy, signer Signer) Attester {
 type Attester interface {
 	Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error)
 	Verify(ctx context.Context, req *VerifyRequest) error
+	String() string
 }
 
 // AttestRequest contains request for attester
