@@ -118,8 +118,12 @@ The ECR event collector requires the following IAM policy:
 }
 ```
 # Development
-To run locally, use skaffold with the `local` profile:
+To run locally, install CRDs, then use skaffold with the `local` profile:
 
+To install CRDs (Only needs to be run once):
+`make install`
+
+To run controllers:
 `skaffold dev --port-forward`
 
 This will also run [localstack](https://github.com/localstack/localstack) to mock services such as SQS.
