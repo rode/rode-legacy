@@ -34,10 +34,17 @@ spec:
         spec:
           description: CollectorSpec defines the desired state of Collector
           properties:
-            foo:
-              description: Foo is an example field of Collector. Edit Collector_types.go
-                to remove/update
+            queueName:
+              description: QueueName defines the name of the queue to collect events
+                from, in the case of the ecr_event type.
               type: string
+            type:
+              description: Type defines the type of collector that this is. Supported
+                values are ecr_event
+              type: string
+          required:
+          - queueName
+          - type
           type: object
         status:
           description: CollectorStatus defines the observed state of Collector

@@ -34,13 +34,13 @@ spec:
         spec:
           description: AttesterSpec defines the desired state of Attester
           properties:
-            foo:
-              description: Foo is an example field of Attester. Edit Attester_types.go
-                to remove/update
-              type: string
             pgpSecret:
+              description: PgpSecret defines the name of the secret to use for signing.
+                If the secret doesn't already exist it will be created.
               type: string
             policy:
+              description: Policy defines the Rego policy that the attester will attest
+                adherance to.
               type: string
           required:
           - pgpSecret

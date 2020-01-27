@@ -27,9 +27,9 @@ type AttesterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Attester. Edit Attester_types.go to remove/update
-	Foo       string `json:"foo,omitempty"`
+	// PgpSecret defines the name of the secret to use for signing. If the secret doesn't already exist it will be created.
 	PgpSecret string `json:"pgpSecret"`
+	// Policy defines the Rego policy that the attester will attest adherance to.
 	Policy    string `json:"policy"`
 }
 

@@ -27,8 +27,10 @@ type CollectorSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Collector. Edit Collector_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Type defines the type of collector that this is. Supported values are ecr_event
+	CollectorType string `json:"type"`
+	// QueueName defines the name of the queue to collect events from, in the case of the ecr_event type.
+	QueueName string `json:"queueName"`
 }
 
 // CollectorStatus defines the observed state of Collector
