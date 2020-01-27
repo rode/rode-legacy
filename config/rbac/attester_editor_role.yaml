@@ -1,0 +1,26 @@
+# permissions to do edit attesters.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: attester-editor-role
+rules:
+- apiGroups:
+  - rode.liatr.io
+  resources:
+  - attesters
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rode.liatr.io
+  resources:
+  - attesters/status
+  verbs:
+  - get
+  - patch
+  - update

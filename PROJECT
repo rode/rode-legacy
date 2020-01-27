@@ -1,0 +1,10 @@
+domain: liatr.io
+repo: github.com/liatrio/rode
+resources:
+- group: rode
+  kind: Collector
+  version: v1
+- group: rode
+  kind: Attester
+  version: v1
+version: "2"

@@ -1,0 +1,10 @@
+apiVersion: rode.liatr.io/v1
+kind: Attester
+metadata:
+  name: attester-sample
+spec:
+  # Add fields here
+  foo: bar
+  pgpSecret: hello
+  policy: |
+    world

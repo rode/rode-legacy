@@ -1,0 +1,7 @@
+apiVersion: rode.liatr.io/v1
+kind: Collector
+metadata:
+  name: collector-sample
+spec:
+  # Add fields here
+  foo: bar
