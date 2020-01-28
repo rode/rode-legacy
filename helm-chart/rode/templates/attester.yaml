@@ -1,0 +1,24 @@
+apiVersion: rode.liatr.io/v1
+kind: Attester
+metadata:
+  name: sample
+spec:
+  policy: |
+    package sample
+
+    violation[{"msg":"analysis failed"}]{
+        input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
+    }
+    violation[{"msg":"analysis not performed"}]{
+        analysisStatus := [s | s := input.occurrences[_].discovered.discovered.analysisStatus]
+        count(analysisStatus) = 0
+    }
+    violation[{"msg":"critical vulnerability found"}]{
+        severityCount("CRITICAL") > 0
+    }
+    violation[{"msg":"high vulnerability found"}]{
+        severityCount("HIGH") > 10
+    }
+    severityCount(severity) = cnt {
+        cnt := count([v | v := input.occurrences[_].vulnerability.severity; v == severity])
+    }

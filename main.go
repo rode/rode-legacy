@@ -18,9 +18,15 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
+
+	"github.com/liatrio/rode/pkg/enforcer"
 
 	rodev1 "github.com/liatrio/rode/api/v1"
 	"github.com/liatrio/rode/controllers"
+	"github.com/liatrio/rode/pkg/attester"
+	"github.com/liatrio/rode/pkg/aws"
+	"github.com/liatrio/rode/pkg/occurrence"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -64,23 +70,41 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.CollectorReconciler{
+	attesters := &controllers.AttesterReconciler{
 		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Collector"),
+		Log:    ctrl.Log.WithName("controllers").WithName("Attester"),
 		Scheme: mgr.GetScheme(),
+	}
+	if err = attesters.SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Attester")
+		os.Exit(1)
+	}
+
+	awsConfig := aws.NewAWSConfig(ctrl.Log.WithName("aws").WithName("AWSConfig"))
+	grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), os.Getenv("GRAFEAS_ENDPOINT"))
+	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters)
+
+	if err = (&controllers.CollectorReconciler{
+		Client:            mgr.GetClient(),
+		Log:               ctrl.Log.WithName("controllers").WithName("Collector"),
+		Scheme:            mgr.GetScheme(),
+		AWSConfig:         awsConfig,
+		OccurrenceCreator: occurrenceCreator,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Collector")
 		os.Exit(1)
 	}
-	if err = (&controllers.AttesterReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Attester"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Attester")
-		os.Exit(1)
-	}
+
 	// +kubebuilder:scaffold:builder
+
+	excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
+	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
+
+	// TODO: add webhook route
+
+	// TODO: add occurrences route
+
+	// TODO: setup TLS for endpoints
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

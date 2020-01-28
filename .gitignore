@@ -1,2 +1,3 @@
 *.tgz
 .DS_Store
+bin/

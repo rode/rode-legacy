@@ -18,6 +18,9 @@ package controllers
 import (
 	"context"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/liatrio/rode/pkg/occurrence"
+
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -29,18 +32,31 @@ import (
 // CollectorReconciler reconciles a Collector object
 type CollectorReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log               logr.Logger
+	Scheme            *runtime.Scheme
+	AWSConfig         *aws.Config
+	OccurrenceCreator occurrence.Creator
 }
 
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors/status,verbs=get;update;patch
 
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
-	_ = r.Log.WithValues("collector", req.NamespacedName)
+	ctx := context.Background()
+	log := r.Log.WithValues("collector", req.NamespacedName)
 
-	// your logic here
+	log.Info("Reconciling collector")
+
+	col := &rodev1.Collector{}
+	err := r.Get(ctx, req.NamespacedName, col)
+	if err != nil {
+		log.Error(err, "Unable to load collector")
+		return ctrl.Result{}, err
+	}
+
+	// TODO: create new collector based on type in CRD
+
+	// c := collector.NewEcrEventCollector(logger, awsConfig, occurrenceCreator, queueName)
 
 	return ctrl.Result{}, nil
 }

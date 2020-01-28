@@ -24,23 +24,55 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rodev1 "github.com/liatrio/rode/api/v1"
+	"github.com/liatrio/rode/pkg/attester"
 )
 
 // AttesterReconciler reconciles a Attester object
 type AttesterReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log       logr.Logger
+	Scheme    *runtime.Scheme
+	Attesters []attester.Attester
+}
+
+func (r *AttesterReconciler) ListAttesters() []attester.Attester {
+	return r.Attesters
 }
 
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters/status,verbs=get;update;patch
 
 func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	_ = context.Background()
-	_ = r.Log.WithValues("attester", req.NamespacedName)
+	ctx := context.Background()
+	log := r.Log.WithValues("attester", req.NamespacedName)
+	opaTrace := false
 
-	// your logic here
+	log.Info("Reconciling attester")
+
+	att := &rodev1.Attester{}
+	err := r.Get(ctx, req.NamespacedName, att)
+	if err != nil {
+		log.Error(err, "Unable to load attester")
+		return ctrl.Result{}, err
+	}
+
+	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
+	if err != nil {
+		log.Error(err, "Unable to create policy")
+		return ctrl.Result{}, err
+	}
+	// TODO: update status based on results of compiling the policy
+
+	// TODO: check if secret already exists before doing this...maybe just load secret
+	signer, err := attester.NewSigner(req.Name)
+	if err != nil {
+		log.Error(err, "Unable to create signer")
+		return ctrl.Result{}, err
+	}
+
+	// TODO: update secret with signer material.
+
+	r.Attesters = append(r.Attesters, attester.NewAttester(req.Name, policy, signer))
 
 	return ctrl.Result{}, nil
 }
