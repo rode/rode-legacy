@@ -18,9 +18,9 @@ package main
 import (
 	"flag"
 	"os"
-	"strings"
+	// "strings"
 
-	"github.com/liatrio/rode/pkg/enforcer"
+	// "github.com/liatrio/rode/pkg/enforcer"
 
 	rodev1 "github.com/liatrio/rode/api/v1"
 	"github.com/liatrio/rode/controllers"
@@ -97,8 +97,8 @@ func main() {
 
 	// +kubebuilder:scaffold:builder
 
-	excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
-	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
+	//excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
+	// enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
 
 	// TODO: add webhook route
 

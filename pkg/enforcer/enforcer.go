@@ -2,7 +2,7 @@ package enforcer
 
 import (
 	"context"
-	"fmt"
+	// "fmt"
 
 	"github.com/go-logr/logr"
 
@@ -49,7 +49,8 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 
 	// Begin: Determine enforced attesters
 	// TODO: use different client to load namespace labels
-	result, err := e.client.Get(ctx, "???", "???")
+	// result, err := e.client.Get(ctx, "???", "???")
+	/*
 	if err != nil {
 		return fmt.Errorf("Unable to get namespace: %v", err)
 	}
@@ -82,6 +83,7 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 			return fmt.Errorf("Unable to find an attestation for %s", att)
 		}
 	}
+	*/
 
 	return nil
 }

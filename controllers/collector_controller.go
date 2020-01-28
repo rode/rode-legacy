@@ -17,9 +17,11 @@ package controllers
 
 import (
 	"context"
+	"errors"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/liatrio/rode/pkg/occurrence"
+	"github.com/liatrio/rode/pkg/collector"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -54,9 +56,14 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	// TODO: create new collector based on type in CRD
-
-	// c := collector.NewEcrEventCollector(logger, awsConfig, occurrenceCreator, queueName)
+	switch col.Spec.CollectorType {
+	case "ecr_event":
+		collector.NewEcrEventCollector(r.Log, r.AWSConfig, r.OccurrenceCreator, col.Spec.QueueName)
+	default:
+		err = errors.New("Unknown collector type")
+		log.Error(err, "Unknown collector type")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
