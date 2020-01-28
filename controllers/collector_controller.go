@@ -56,12 +56,19 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	var c collector.Collector
 	switch col.Spec.CollectorType {
 	case "ecr_event":
-		collector.NewEcrEventCollector(r.Log, r.AWSConfig, r.OccurrenceCreator, col.Spec.QueueName)
+		c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, r.OccurrenceCreator, col.Spec.QueueName)
 	default:
 		err = errors.New("Unknown collector type")
+		// Loud output when erroring, getting more reconciles than expected.
 		log.Error(err, "Unknown collector type")
+		return ctrl.Result{}, err
+	}
+	err = c.Reconcile(ctx)
+	if err != nil {
+		log.Error(err, "Unable to load collector")
 		return ctrl.Result{}, err
 	}
 

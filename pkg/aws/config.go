@@ -24,7 +24,7 @@ func NewAWSConfig(log logr.Logger) *aws.Config {
 
 	customResolver := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
 		endpoint := os.Getenv(fmt.Sprintf("AWS_%s_ENDPOINT", strings.ToUpper(service)))
-		log.Info("mapping service '%s' to endpoint '%s'", service, endpoint)
+		log.Info("mapping service to endpoint", "service", service, "endpoint", endpoint)
 		if endpoint != "" {
 			return endpoints.ResolvedEndpoint{
 				URL: fmt.Sprintf("http://%s", endpoint),
@@ -42,7 +42,7 @@ func NewAWSConfig(log logr.Logger) *aws.Config {
 	if err != nil {
 		log.Error(err, "Error getting caller identity")
 	} else {
-		log.Info("Finished AWS Identity", result)
+		log.Info("Finished AWS Identity", "result", result)
 	}
 
 	return cfg

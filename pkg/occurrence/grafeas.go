@@ -32,7 +32,7 @@ type GrafeasClient interface {
 
 // NewGrafeasClient creates a new client
 func NewGrafeasClient(log logr.Logger, endpoint string) GrafeasClient {
-	log.Info("Using Grafeas endpoint", endpoint)
+	log.Info("Using Grafeas endpoint", "Endpoint", endpoint)
 
 	grpcDialOption, err := newGRPCDialOption(log)
 	if err != nil {
@@ -94,12 +94,12 @@ func (c *grafeasClient) CreateOccurrences(ctx context.Context, occurrences ...*g
 }
 
 func (c *grafeasClient) initProject(ctx context.Context, projectClient project.ProjectsClient) error {
-	c.log.Info("Fetching project", c.projectID)
+	c.log.Info("Fetching project", "projectID", c.projectID)
 	_, err := projectClient.GetProject(ctx, &project.GetProjectRequest{
 		Name: c.projectID,
 	})
 	if err != nil && grpc.Code(err) == codes.NotFound {
-		c.log.Info("Creating project", c.projectID)
+		c.log.Info("Creating project", "ProjectID", c.projectID)
 		_, err = projectClient.CreateProject(ctx, &project.CreateProjectRequest{
 			Project: &project.Project{
 				Name: c.projectID,
