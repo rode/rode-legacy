@@ -38,6 +38,9 @@ type AttesterSpec struct {
 type AttesterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+
+	// CompiledPolicy defines whether or not the policy compiled correctly
+	CompiledPolicy string `json:"compiledPolicy"`
 }
 
 // +kubebuilder:object:root=true

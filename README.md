@@ -33,7 +33,7 @@ If all occurrences exist and comply with the policy, then the attester will use 
 
 ![](docs/attesters.png)
 
-Attesters are defined as `Atteter` [custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).  See below for an example:
+Attesters are defined as `Attester` [custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).  See below for an example:
 
 ```
 apiVersion: rode.liatr.io/v1alpha1
