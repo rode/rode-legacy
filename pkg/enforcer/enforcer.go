@@ -3,7 +3,7 @@ package enforcer
 import (
 	"context"
 	"net/http"
-	// "fmt"
+	"fmt"
 	"io/ioutil"
 	"encoding/json"
 
@@ -54,10 +54,13 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 
 	e.log.Info("About to enforce resource", resourceURI, namespace)
 
-	// Begin: Determine enforced attesters
-	// TODO: use different client to load namespace labels
-	// result, err := e.client.Get(ctx, "???", "???")
-	/*
+	// Begin: Determine enforced attester
+	result := &corev1.Namespace{}
+	err := e.client.Get(ctx, client.ObjectKey{
+		Namespace: "",
+		Name: namespace,
+	}, result)
+
 	if err != nil {
 		return fmt.Errorf("Unable to get namespace: %v", err)
 	}
@@ -65,14 +68,14 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 	if resultLabels == nil {
 		return nil
 	}
-	enforcedAttesters := resultLabels["rode.liatr.io/enforce-attesters"]
+	enforcedAttester := resultLabels["rode.liatr.io/enforce-attester"]
 	// End: Determine enforced attesters
 	occurrenceList, err := e.occurrenceLister.ListOccurrences(ctx, resourceURI)
 	if err != nil {
 		return err
 	}
 	for _, att := range e.attesterLister.ListAttesters() {
-		if enforcedAttesters != "*" && enforcedAttesters != att.String() {
+		if enforcedAttester != att.String() {
 			continue
 		}
 		attested := false
@@ -90,7 +93,6 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 			return fmt.Errorf("Unable to find an attestation for %s", att)
 		}
 	}
-	*/
 
 	return nil
 }

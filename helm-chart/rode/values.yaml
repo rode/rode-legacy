@@ -32,7 +32,7 @@ image:
 
 enforcer:
   enabled: true
-  namespaceLabel: "rode.liatr.io/enforce-attesters"
+  namespaceLabel: "rode.liatr.io/enforce-attester"
   excludedNamespaces:
   - kube-system
 

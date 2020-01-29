@@ -56,7 +56,7 @@ func NewGrafeasClient(log logr.Logger, endpoint string) GrafeasClient {
 
 // ListOccurrences will get the occurence for a resource
 func (c *grafeasClient) ListOccurrences(ctx context.Context, resourceURI string) (*grafeas.ListOccurrencesResponse, error) {
-	c.log.Info("Get occurrences for resource '%s'", resourceURI)
+	c.log.Info("Get occurrences for resource", "resouceURI", resourceURI)
 
 	resp, err := c.client.ListOccurrences(ctx, &grafeas.ListOccurrencesRequest{
 		Parent:   fmt.Sprintf("projects/%s", c.projectID),

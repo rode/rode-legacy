@@ -67,15 +67,11 @@ The PGP key is automatically generated and stored as a Kubernetes secret if it d
 ## Enforcers
 Enforcers are defined as [validating admission webhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) that ensures the resource defined as an `image` in the `Pod` has been properly attested.
 
-Enforcers are configured to ensure specified attesters referenced in the namespace for the pod have successfully created attestations. The namespace must include a label for enforcement to be activated:
+Enforcers are configured to ensure the specified attester referenced in the namespace for the pod had successfully created an attestation. The namespace must include a label for enforcement to be activated:
 
 
 ```
-  "rode.liatr.io/enforce-attesters": myAttester
-```
-or
-```
-  "rode.liatr.io/enforce-attesters": "*"
+  "rode.liatr.io/enforce-attester": myAttester
 ```
 
 ![](docs/enforcers.png)
