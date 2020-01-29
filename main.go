@@ -18,9 +18,9 @@ package main
 import (
 	"flag"
 	"os"
-	// "strings"
+	"strings"
 
-	// "github.com/liatrio/rode/pkg/enforcer"
+	"github.com/liatrio/rode/pkg/enforcer"
 
 	rodev1 "github.com/liatrio/rode/api/v1"
 	"github.com/liatrio/rode/controllers"
@@ -49,8 +49,12 @@ func init() {
 
 func main() {
 	var metricsAddr string
+	var healthAddr string
+	var certDir string
 	var enableLeaderElection bool
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&healthAddr, "health-addr", ":4000", "The address the health endpoint binds to.")
+	flag.StringVar(&certDir, "cert-dir", "/certificates", "The path to tls certificates.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.Parse()
@@ -62,6 +66,8 @@ func main() {
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,
+		HealthProbeBindAddress: healthAddr,
+		CertDir:            certDir,
 		LeaderElection:     enableLeaderElection,
 		Port:               9443,
 	})
@@ -97,10 +103,12 @@ func main() {
 
 	// +kubebuilder:scaffold:builder
 
-	//excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
-	// enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
+	excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
+	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
 
 	// TODO: add webhook route
+
+	mgr.GetWebhookServer().Register("/validate", enforcer)
 
 	// TODO: add occurrences route
 

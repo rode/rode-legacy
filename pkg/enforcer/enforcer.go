@@ -2,7 +2,10 @@ package enforcer
 
 import (
 	"context"
+	"net/http"
 	// "fmt"
+	"io/ioutil"
+	"encoding/json"
 
 	"github.com/go-logr/logr"
 
@@ -11,11 +14,15 @@ import (
 	"github.com/liatrio/rode/pkg/attester"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	admissionv1 "k8s.io/api/admission/v1beta1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Enforcer enforces attestations on a resource
 type Enforcer interface {
 	Enforce(ctx context.Context, namespace string, resourceURI string) error
+	http.Handler
 }
 
 type enforcer struct {
@@ -86,4 +93,59 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 	*/
 
 	return nil
+}
+
+func (e *enforcer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
+	c := context.Background()
+	data, err := ioutil.ReadAll(req.Body)
+	if err != nil || len(data) == 0 {
+		e.log.Error(err, "Error responding to webhook")
+		return
+	}
+
+	var arRequest admissionv1.AdmissionReview
+	err = json.Unmarshal(data, &arRequest)
+	if err != nil {
+		e.log.Error(err, "Error parsing webhook")
+	}
+
+	if arRequest.Request.Kind.Group == "" && arRequest.Request.Kind.Kind == "Pod" {
+		namespace := arRequest.Request.Namespace
+		pod := corev1.Pod{}
+		if err = json.Unmarshal(arRequest.Request.Object.Raw, &pod); err == nil {
+			for _, container := range pod.Spec.Containers {
+				err = e.Enforce(c, namespace, container.Image)
+				if err != nil {
+					break
+				}
+			}
+		}
+	}
+
+	var arResponse admissionv1.AdmissionReview
+	if err != nil {
+		arResponse = admissionv1.AdmissionReview{
+			Response: &admissionv1.AdmissionResponse{
+				Allowed: false,
+				Result: &metav1.Status{
+					Message: err.Error(),
+				},
+			},
+		}
+	} else {
+		arResponse = admissionv1.AdmissionReview{
+			Response: &admissionv1.AdmissionResponse{
+				Allowed: true,
+				Result: &metav1.Status{
+					Message: "Approved by rode",
+				},
+			},
+		}
+	}
+
+	responseData, err := json.Marshal(arResponse)
+	if err != nil {
+		e.log.Error(err, "Error sneding response")
+	}
+	resp.Write(responseData)
 }
