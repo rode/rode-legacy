@@ -41,6 +41,9 @@ type AttesterStatus struct {
 
 	// CompiledPolicy defines whether or not the policy compiled correctly
 	CompiledPolicy string `json:"compiledPolicy"`
+
+    // ValidAttester defines whether or not the attester is valid
+    ValidAttester bool `json:"validAttester"`
 }
 
 // +kubebuilder:object:root=true
