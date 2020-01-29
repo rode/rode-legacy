@@ -50,8 +50,8 @@ spec:
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.container.port}}
-              scheme: HTTPS
+              port: {{ .Values.livenessProbe.port }}
+              scheme: HTTP
             initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
@@ -60,8 +60,8 @@ spec:
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.container.port}}
-              scheme: HTTPS
+              port: {{ .Values.readinessProbe.port }}
+              scheme: HTTP
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
             timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
