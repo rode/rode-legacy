@@ -46,11 +46,12 @@ rbac:
   serviceAccountAnnotations: {}
 
 container:
-  port: 4000
+  port: 9443
 service:
   port: 443
 
 livenessProbe:
+  port: 4000
   failureThreshold: 3
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -58,6 +59,7 @@ livenessProbe:
   timeoutSeconds: 5
 
 readinessProbe:
+  port: 4000
   failureThreshold: 6
   initialDelaySeconds: 0
   periodSeconds: 5
