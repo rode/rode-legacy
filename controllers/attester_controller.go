@@ -19,6 +19,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -49,8 +50,8 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	log.Info("Reconciling attester")
 
-	att := &rodev1.Attester{}
-	err := r.Get(ctx, req.NamespacedName, att)
+	var att rodev1.Attester
+	err := r.Get(ctx, req.NamespacedName, &att)
 	if err != nil {
 		log.Error(err, "Unable to load attester")
 		return ctrl.Result{}, err
@@ -59,15 +60,34 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
+		att.Status.CompiledPolicy = "Failed to compile"
 		return ctrl.Result{}, err
 	}
+
 	// TODO: update status based on results of compiling the policy
 
-	// TODO: check if secret already exists before doing this...maybe just load secret
-	signer, err := attester.NewSigner(req.Name)
-	if err != nil {
-		log.Error(err, "Unable to create signer")
+	att.Status.CompiledPolicy = "Compiled"
+
+	if err := r.Status().Update(ctx, &att); err != nil {
+		log.Error(err, "Unable to update Attester status")
 		return ctrl.Result{}, err
+	}
+
+	// TODO: check if secret already exists before doing this...maybe just load secret
+
+	signerSecret := &corev1.Secret{}
+	var signer attester.Signer
+
+	err = r.Get(ctx, req.NamespacedName, signerSecret)
+	if err != nil {
+		log.Error(err, "Unable to load signerSecret")
+		log.Info("Secret didn't exist, creating new signer")
+		signer, err = attester.NewSigner(req.Name)
+		if err != nil {
+			log.Error(err, "Unable to create signer")
+			return ctrl.Result{}, err
+		}
+		//return ctrl.Result{}, err
 	}
 
 	// TODO: update secret with signer material.

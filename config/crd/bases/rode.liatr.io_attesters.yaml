@@ -47,6 +47,13 @@ spec:
           type: object
         status:
           description: AttesterStatus defines the observed state of Attester
+          properties:
+            compiledPolicy:
+              description: CompiledPolicy defines whether or not the policy compiled
+                correctly
+              type: string
+          required:
+          - compiledPolicy
           type: object
       type: object
   version: v1
