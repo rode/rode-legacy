@@ -31,7 +31,7 @@ type CollectorSpec struct {
 	CollectorType string `json:"type"`
 	// Defines configuration for collectors of the ecr_event type.
 	// +optional
-	AWS CollectorECRConfig `json:"ecr,omitempty"`
+	ECR CollectorECRConfig `json:"ecr,omitempty"`
 }
 
 // CollectorStatus defines the observed state of Collector
