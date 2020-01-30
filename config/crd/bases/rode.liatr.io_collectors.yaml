@@ -15,6 +15,8 @@ spec:
     plural: collectors
     singular: collector
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       description: Collector is the Schema for the collectors API
@@ -34,20 +36,29 @@ spec:
         spec:
           description: CollectorSpec defines the desired state of Collector
           properties:
-            queueName:
-              description: QueueName defines the name of the queue to collect events
-                from, in the case of the ecr_event type.
-              type: string
+            ecr:
+              description: Defines configuration for collectors of the ecr_event type.
+              properties:
+                queueName:
+                  description: Denotes the name of the AWS SQS queue to collect events
+                    from.
+                  type: string
+              required:
+              - queueName
+              type: object
             type:
               description: Type defines the type of collector that this is. Supported
                 values are ecr_event
               type: string
           required:
-          - queueName
           - type
           type: object
         status:
           description: CollectorStatus defines the observed state of Collector
+          properties:
+            active:
+              description: Denotes if the collector is correctly defined and active.
+              type: boolean
           type: object
       type: object
   version: v1

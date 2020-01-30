@@ -19,27 +19,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// CollectorAWSConfig defines configuration for ECR type collectors.
+type CollectorECRConfig struct {
+	// Denotes the name of the AWS SQS queue to collect events from.
+	QueueName string `json:"queueName, omitempty"`
+}
 
 // CollectorSpec defines the desired state of Collector
 type CollectorSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
 	// Type defines the type of collector that this is. Supported values are ecr_event
 	CollectorType string `json:"type"`
-	// QueueName defines the name of the queue to collect events from, in the case of the ecr_event type.
-	QueueName string `json:"queueName"`
+	// Defines configuration for collectors of the ecr_event type.
+	// +optional
+	AWS CollectorECRConfig `json:"ecr,omitempty"`
 }
 
 // CollectorStatus defines the observed state of Collector
 type CollectorStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Denotes if the collector is correctly defined and active.
+	// +optional
+	Active bool `json:"active,omitempty"`
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // Collector is the Schema for the collectors API
 type Collector struct {

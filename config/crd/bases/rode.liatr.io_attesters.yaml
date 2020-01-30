@@ -52,8 +52,12 @@ spec:
               description: CompiledPolicy defines whether or not the policy compiled
                 correctly
               type: string
+            validAttester:
+              description: ValidAttester defines whether or not the attester is valid
+              type: boolean
           required:
           - compiledPolicy
+          - validAttester
           type: object
       type: object
   version: v1

@@ -3,5 +3,6 @@ kind: Collector
 metadata:
   name: collector-sample
 spec:
-  # Add fields here
-  foo: bar
+  type: ecr_event
+  ecr:
+    queueName: myQueue
