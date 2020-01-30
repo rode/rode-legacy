@@ -50,8 +50,8 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	log.Info("Reconciling attester")
 
-	var att rodev1.Attester
-	err := r.Get(ctx, req.NamespacedName, &att)
+	att := &rodev1.Attester{}
+	err := r.Get(ctx, req.NamespacedName, att)
 	if err != nil {
 		log.Error(err, "Unable to load attester")
 		return ctrl.Result{}, err
@@ -65,10 +65,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// TODO: update status based on results of compiling the policy
-
 	att.Status.CompiledPolicy = "Compiled"
 
-	if err := r.Status().Update(ctx, &att); err != nil {
+	if err := r.Status().Update(ctx, att); err != nil {
 		log.Error(err, "Unable to update Attester status")
 		return ctrl.Result{}, err
 	}
@@ -78,17 +77,22 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
 
-	err = r.Get(ctx, req.NamespacedName, signerSecret)
-	if err != nil {
-		log.Error(err, "Unable to load signerSecret")
-		log.Info("Secret didn't exist, creating new signer")
-		signer, err = attester.NewSigner(req.Name)
+    if att.Spec.PgpSecret != "" {
+        err := r.Get(ctx, client.ObjectKey{
+            Namespace: req.Namespace,
+            Name: att.Spec.PgpSecret,
+            }, signerSecret)
+        if err != nil {
+		    log.Error(err, "Unable to load signerSecret")
+		    return ctrl.Result{}, err
+        }
+	} else {
+        signer, err = attester.NewSigner(req.Name)
 		if err != nil {
 			log.Error(err, "Unable to create signer")
 			return ctrl.Result{}, err
 		}
-		//return ctrl.Result{}, err
-	}
+    }
 
 	// TODO: update secret with signer material.
 
