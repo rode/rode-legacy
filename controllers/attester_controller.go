@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-    "io"
 
 	rodev1 "github.com/liatrio/rode/api/v1"
 	"github.com/liatrio/rode/pkg/attester"
@@ -62,12 +61,12 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
-		att.Status.CompiledPolicy = "Failed to compile"
+		//att.Status.CompiledPolicy = "Failed to compile"
 		return ctrl.Result{}, err
 	}
 
 	// TODO: update status based on results of compiling the policy
-	att.Status.CompiledPolicy = "Compiled"
+	//att.Status.CompiledPolicy = "Compiled"
 
 	if err := r.Status().Update(ctx, att); err != nil {
 		log.Error(err, "Unable to update Attester status")
@@ -96,22 +95,22 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
         log.Info("Created the signer successfully")
 
-        publicKey := signer.KeyID()
+        //publicKey := signer.KeyID()
 
-        var out io.Writer
+        //var out io.Writer
 
-        err := signer.Serialize(out)
+        //err := signer.Serialize(out)
 
-        var privateKey string
+        //var privateKey string
 
-        _, err = io.WriteString(out, privateKey)
+        //_, err = io.WriteString(out, privateKey)
 
         signerSecret = &corev1.Secret{
             ObjectMeta: metav1.ObjectMeta{
                 Namespace: req.Namespace,
                 Name:      req.Name,
             },
-            Data: map[string][]byte{"publicKey": []byte(publicKey), "privateKey": []byte(privateKey)},
+            Data: map[string][]byte{"publicKey": make([]byte, 5), "privateKey": make([]byte, 5)},
         }
         err = r.Create(ctx, signerSecret)
         if err != nil {
