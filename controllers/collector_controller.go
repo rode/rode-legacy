@@ -135,19 +135,19 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 func worker(ctx context.Context, logger logr.Logger, c collector.Collector) chan interface{} {
 	ch := make(chan interface{})
 
-	go func(ctx context.Context, logger logr.Logger, collector collector.Collector) {
+	go func() {
 		for range time.Tick(5 * time.Second) {
 			select {
 			case <-ch:
 				return
 			default:
-				err := collector.Reconcile(ctx)
+				err := c.Reconcile(ctx)
 				if err != nil {
 					logger.Error(err, "error reconciling collector")
 				}
 			}
 		}
-	}(ctx, logger, c)
+	}()
 
 	return ch
 }
