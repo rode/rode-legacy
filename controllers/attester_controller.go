@@ -17,7 +17,8 @@ package controllers
 
 import (
 	"context"
-
+    "bufio"
+    "io"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,12 +62,17 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
-		//att.Status.CompiledPolicy = "Failed to compile"
+        // TODO: set status condition to something bad
 		return ctrl.Result{}, err
 	}
 
 	// TODO: update status based on results of compiling the policy
-	//att.Status.CompiledPolicy = "Compiled"
+    condition := rodev1.AttesterCondition{
+        Type: rodev1.AttesterConditionReady,
+        Status: rodev1.ConditionTrue,
+    }
+
+    att.Status.Conditions = append(att.Status.Conditions, condition)
 
 	if err := r.Status().Update(ctx, att); err != nil {
 		log.Error(err, "Unable to update Attester status")
@@ -78,16 +84,20 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
 
-    if att.Spec.PgpSecret == req.Name {
-        err := r.Get(ctx, client.ObjectKey{
+    err = r.Get(ctx, client.ObjectKey{
             Namespace: req.Namespace,
-            Name: att.Spec.PgpSecret,
+            Name: req.Name,
             }, signerSecret)
-        if err != nil {
-		    log.Error(err, "Unable to load signerSecret")
-		    return ctrl.Result{}, err
+    if err != nil {
+        // If the secret wasn't found then create the secret
+        if err.Error() != "Secret \"" + req.Name + "\" not found" {
+            log.Error(err, "Unable to get the secret")
+            return ctrl.Result{}, err
         }
-	} else {
+
+        log.Info("Couldn't find secret, creating a new one")
+        // TODO: Create the secret via using an io.WriterBuffer or something like that
+        // Create a new signer
         signer, err = attester.NewSigner(req.Name)
 		if err != nil {
 			log.Error(err, "Unable to create signer")
@@ -95,31 +105,53 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
         log.Info("Created the signer successfully")
 
-        //publicKey := signer.KeyID()
+        var writer io.Writer
 
-        //var out io.Writer
+        buf := bufio.NewWriter(writer)
+        // signer.Serialize writes the public key to a buffer object buf
+        err = signer.Serialize(writer)
+        if err != nil {
+            log.Error(err, "Unable to read the private key data from the signer")
+            return ctrl.Result{}, err
+        }
 
-        //err := signer.Serialize(out)
+        // buf writes the private and public key to signerData string
+        var signerData string
 
-        //var privateKey string
-
-        //_, err = io.WriteString(out, privateKey)
+        n, err := io.WriteString(buf, signerData)
+        if err != nil {
+            log.Error(err, "Unable to write signer buffer to a string")
+        }
+        // DEBUG:
+        log.Info("Logging signerData")
+        log.Info(signerData)
+        log.Info("Number of bytes written", "n", n)
 
         signerSecret = &corev1.Secret{
             ObjectMeta: metav1.ObjectMeta{
                 Namespace: req.Namespace,
                 Name:      req.Name,
             },
-            Data: map[string][]byte{"publicKey": make([]byte, 5), "privateKey": make([]byte, 5)},
+            Data: make(map[string][]byte),
         }
+
+        signerSecret.Data["keys"] = []byte(signerData)
+
         err = r.Create(ctx, signerSecret)
         if err != nil {
             log.Error(err, "Unable to create signer Secret")
             return ctrl.Result{}, err
         }
+
+        log.Info("Created the signer secret")
     }
 
-	// TODO: update secret with signer material.
+    // Secret did exist, or we created it and now have a signer
+
+    // TODO: Update the secret with the signer information?
+
+
+
 
 	r.Attesters = append(r.Attesters, attester.NewAttester(req.Name, policy, signer))
 
