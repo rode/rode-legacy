@@ -3,9 +3,9 @@ package collector
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
-  "errors"
 
 	"github.com/go-logr/logr"
 
@@ -69,12 +69,12 @@ func (i *ecrCollector) reconcileCWEvent(ctx context.Context) error {
 		Name:         aws.String(i.queueName),
 		EventPattern: aws.String(`{"source":["aws.ecr"],"detail-type":["ECR Image Action","ECR Image Scan"]}`),
 	})
-	i.logger.Info("Putting CW Event rule ","queueName", i.queueName)
+	i.logger.Info("Putting CW Event rule ", "queueName", i.queueName)
 	err := req.Send()
 	if err != nil {
 		return err
 	}
-	i.logger.Info("Setting queue policy", "queueArn", i.queueARN, "rule",aws.StringValue(ruleResp.RuleArn))
+	i.logger.Info("Setting queue policy", "queueArn", i.queueARN, "rule", aws.StringValue(ruleResp.RuleArn))
 	req, _ = sqsSvc.SetQueueAttributesRequest(&sqs.SetQueueAttributesInput{
 		QueueUrl: aws.String(i.queueURL),
 		Attributes: map[string]*string{
@@ -104,7 +104,7 @@ func (i *ecrCollector) reconcileCWEvent(ctx context.Context) error {
 		return err
 	}
 
-	i.logger.Info("Putting CW Event rule target","queueName", i.queueName,"queueArn", i.queueARN)
+	i.logger.Info("Putting CW Event rule target", "queueName", i.queueName, "queueArn", i.queueARN)
 	req, resp := svc.PutTargetsRequest(&cloudwatchevents.PutTargetsInput{
 		Rule: aws.String(i.queueName),
 		Targets: []*cloudwatchevents.Target{
@@ -119,7 +119,7 @@ func (i *ecrCollector) reconcileCWEvent(ctx context.Context) error {
 		return err
 	}
 	if aws.Int64Value(resp.FailedEntryCount) > 0 {
-		i.logger.Error(errors.New("Failure putting event targets"), "Failure with putting event targets","response", resp)
+		i.logger.Error(errors.New("Failure putting event targets"), "Failure with putting event targets", "response", resp)
 	} else {
 		i.ruleComplete = true
 	}
@@ -167,7 +167,7 @@ func (i *ecrCollector) reconcileSQS(ctx context.Context) error {
 }
 
 func (i *ecrCollector) watchQueue(ctx context.Context) {
-	i.logger.Info("Watching Queue","queueUrl", i.queueURL)
+	i.logger.Info("Watching Queue", "queueUrl", i.queueURL)
 	session := session.Must(session.NewSession())
 	svc := sqs.New(session, i.awsConfig)
 	for i.queueURL != "" {
@@ -187,14 +187,14 @@ func (i *ecrCollector) watchQueue(ctx context.Context) {
 			body := aws.StringValue(msg.Body)
 
 			/*
-			if i.logger.Desugar().Core().Enabled(zap.DebugLevel) {
-				rawJSON := json.RawMessage(body)
-				prettyJSON, err := json.MarshalIndent(rawJSON, "", "  ")
-				if err != nil {
-					i.logger.Errorf("Unable to generate JSON", err)
+				if i.logger.Desugar().Core().Enabled(zap.DebugLevel) {
+					rawJSON := json.RawMessage(body)
+					prettyJSON, err := json.MarshalIndent(rawJSON, "", "  ")
+					if err != nil {
+						i.logger.Errorf("Unable to generate JSON", err)
+					}
+					fmt.Println(string(prettyJSON))
 				}
-				fmt.Println(string(prettyJSON))
-			}
 			*/
 
 			event := &CloudWatchEvent{}

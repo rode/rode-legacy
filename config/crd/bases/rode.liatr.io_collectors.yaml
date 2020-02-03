@@ -43,12 +43,10 @@ spec:
                   description: Denotes the name of the AWS SQS queue to collect events
                     from.
                   type: string
-              required:
-              - queueName
               type: object
             type:
               description: Type defines the type of collector that this is. Supported
-                values are ecr_event
+                values are ecr_event, test
               type: string
           required:
           - type

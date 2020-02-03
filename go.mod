@@ -10,8 +10,9 @@ require (
 	github.com/onsi/ginkgo v1.10.1
 	github.com/onsi/gomega v1.7.0
 	github.com/open-policy-agent/opa v0.16.2
+	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
-	go.uber.org/zap v1.13.0
+	go.uber.org/zap v1.13.0 // indirect
 	golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586
 	google.golang.org/grpc v1.23.0
 	k8s.io/api v0.17.1

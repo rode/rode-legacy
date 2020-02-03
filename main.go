@@ -97,6 +97,7 @@ func main() {
 		Scheme:            mgr.GetScheme(),
 		AWSConfig:         awsConfig,
 		OccurrenceCreator: occurrenceCreator,
+		Workers:           make(map[string]chan interface{}),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Collector")
 		os.Exit(1)
