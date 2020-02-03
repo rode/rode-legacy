@@ -42,6 +42,7 @@ type CollectorStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name=ACTIVE,type=boolean,JSONPath=".status.active"
 
 // Collector is the Schema for the collectors API
 type Collector struct {
