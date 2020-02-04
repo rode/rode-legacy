@@ -23,17 +23,16 @@ import (
 const path = "/ecr-healthz"
 
 type ecrCollector struct {
-	logger            logr.Logger
-	awsConfig         *aws.Config
-	queueName         string
-	queueURL          string
-	queueARN          string
-	ruleComplete      bool
-	occurrenceCreator occurrence.Creator
+	logger       logr.Logger
+	awsConfig    *aws.Config
+	queueName    string
+	queueURL     string
+	queueARN     string
+	ruleComplete bool
 }
 
 // NewEcrEventCollector will create an collector of ECR events from Cloud watch
-func NewEcrEventCollector(logger logr.Logger, awsConfig *aws.Config, occurrenceCreator occurrence.Creator, queueName string) Collector {
+func NewEcrEventCollector(logger logr.Logger, awsConfig *aws.Config, queueName string) Collector {
 	return &ecrCollector{
 		logger,
 		awsConfig,
@@ -41,7 +40,6 @@ func NewEcrEventCollector(logger logr.Logger, awsConfig *aws.Config, occurrenceC
 		"",
 		"",
 		false,
-		occurrenceCreator,
 	}
 }
 
@@ -54,6 +52,33 @@ func (i *ecrCollector) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	return nil
+}
+
+func (i *ecrCollector) Destroy(ctx context.Context) error {
+	return nil
+}
+
+func (i *ecrCollector) Start(ctx context.Context, stopChan chan interface{}, occurrenceCreator occurrence.Creator) error {
+	go func() {
+		i.logger.Info("Watching Queue", "queueUrl", i.queueURL)
+		ses := session.Must(session.NewSession())
+		svc := sqs.New(ses, i.awsConfig)
+
+		for {
+			select {
+			case <-ctx.Done():
+				stopChan <- true
+				return
+			default:
+				err := i.watchQueue(ctx, svc, occurrenceCreator)
+				if err != nil {
+					i.logger.Error(err, "error watching queue")
+				}
+			}
+		}
+	}()
 
 	return nil
 }
@@ -162,80 +187,75 @@ func (i *ecrCollector) reconcileSQS(ctx context.Context) error {
 	err = req.Send()
 	i.queueARN = aws.StringValue(attrResp.Attributes["QueueArn"])
 
-	go i.watchQueue(ctx)
 	return nil
 }
 
-func (i *ecrCollector) watchQueue(ctx context.Context) {
-	i.logger.Info("Watching Queue", "queueUrl", i.queueURL)
-	session := session.Must(session.NewSession())
-	svc := sqs.New(session, i.awsConfig)
-	for i.queueURL != "" {
-		req, resp := svc.ReceiveMessageRequest(&sqs.ReceiveMessageInput{
-			QueueUrl:          aws.String(i.queueURL),
-			VisibilityTimeout: aws.Int64(10),
-			WaitTimeSeconds:   aws.Int64(20),
-		})
+func (i *ecrCollector) watchQueue(ctx context.Context, svc *sqs.SQS, occurrenceCreator occurrence.Creator) error {
+	req, resp := svc.ReceiveMessageRequest(&sqs.ReceiveMessageInput{
+		QueueUrl:          aws.String(i.queueURL),
+		VisibilityTimeout: aws.Int64(10),
+		WaitTimeSeconds:   aws.Int64(20),
+	})
 
-		err := req.Send()
+	err := req.Send()
+	if err != nil {
+		return err
+	}
+
+	for _, msg := range resp.Messages {
+		body := aws.StringValue(msg.Body)
+
+		/*
+			if i.logger.Desugar().Core().Enabled(zap.DebugLevel) {
+				rawJSON := json.RawMessage(body)
+				prettyJSON, err := json.MarshalIndent(rawJSON, "", "  ")
+				if err != nil {
+					i.logger.Errorf("Unable to generate JSON", err)
+				}
+				fmt.Println(string(prettyJSON))
+			}
+		*/
+
+		event := &CloudWatchEvent{}
+		err = json.Unmarshal([]byte(body), event)
 		if err != nil {
-			i.logger.Error(err, "Error watching queue")
-			return
+			return err
 		}
 
-		for _, msg := range resp.Messages {
-			body := aws.StringValue(msg.Body)
-
-			/*
-				if i.logger.Desugar().Core().Enabled(zap.DebugLevel) {
-					rawJSON := json.RawMessage(body)
-					prettyJSON, err := json.MarshalIndent(rawJSON, "", "  ")
-					if err != nil {
-						i.logger.Errorf("Unable to generate JSON", err)
-					}
-					fmt.Println(string(prettyJSON))
-				}
-			*/
-
-			event := &CloudWatchEvent{}
-			err = json.Unmarshal([]byte(body), event)
+		var occurrences []*grafeas.Occurrence
+		switch event.DetailType {
+		case "ECR Image Action":
+			details := &ECRImageActionDetail{}
+			err = json.Unmarshal(event.Detail, details)
 			if err != nil {
-				i.logger.Error(err, "Error watching queue")
-			}
+				return err
 
-			var occurrences []*grafeas.Occurrence
-			switch event.DetailType {
-			case "ECR Image Action":
-				details := &ECRImageActionDetail{}
-				err = json.Unmarshal(event.Detail, details)
-				if err != nil {
-					i.logger.Error(err, "Error watching queue")
-
-				}
-				occurrences = i.newImageActionOccurrences(event, details)
-			case "ECR Image Scan":
-				details := &ECRImageScanDetail{}
-				err = json.Unmarshal(event.Detail, details)
-				if err != nil {
-					i.logger.Error(err, "Error watching queue")
-				}
-				occurrences = i.newImageScanOccurrences(event, details)
 			}
-			err = i.occurrenceCreator.CreateOccurrences(ctx, occurrences...)
+			occurrences = i.newImageActionOccurrences(event, details)
+		case "ECR Image Scan":
+			details := &ECRImageScanDetail{}
+			err = json.Unmarshal(event.Detail, details)
 			if err != nil {
-				i.logger.Error(err, "Error watching queue")
+				return err
 			}
+			occurrences = i.newImageScanOccurrences(event, details)
+		}
+		err = occurrenceCreator.CreateOccurrences(ctx, occurrences...)
+		if err != nil {
+			return err
+		}
 
-			delReq, _ := svc.DeleteMessageRequest(&sqs.DeleteMessageInput{
-				QueueUrl:      aws.String(i.queueURL),
-				ReceiptHandle: msg.ReceiptHandle,
-			})
-			err = delReq.Send()
-			if err != nil {
-				i.logger.Error(err, "Error watching queue")
-			}
+		delReq, _ := svc.DeleteMessageRequest(&sqs.DeleteMessageInput{
+			QueueUrl:      aws.String(i.queueURL),
+			ReceiptHandle: msg.ReceiptHandle,
+		})
+		err = delReq.Send()
+		if err != nil {
+			return err
 		}
 	}
+
+	return nil
 }
 
 func newImageScanOccurrence(event *CloudWatchEvent, detail *ECRImageScanDetail, tag string, noteName string) *grafeas.Occurrence {
