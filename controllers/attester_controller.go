@@ -17,8 +17,7 @@ package controllers
 
 import (
 	"context"
-    "bufio"
-    "io"
+    "bytes"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -89,6 +88,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
             Name: req.Name,
             }, signerSecret)
     if err != nil {
+
         // If the secret wasn't found then create the secret
         if err.Error() != "Secret \"" + req.Name + "\" not found" {
             log.Error(err, "Unable to get the secret")
@@ -96,7 +96,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
         }
 
         log.Info("Couldn't find secret, creating a new one")
-        // TODO: Create the secret via using an io.WriterBuffer or something like that
+
         // Create a new signer
         signer, err = attester.NewSigner(req.Name)
 		if err != nil {
@@ -105,37 +105,26 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
         log.Info("Created the signer successfully")
 
-        var writer io.Writer
+        var buffer []byte
+        buf := bytes.NewBuffer(buffer)
 
-        buf := bufio.NewWriter(writer)
-        // signer.Serialize writes the public key to a buffer object buf
-        err = signer.Serialize(writer)
+        // signer.Serialize writes the public and private keys to a buffer object buf
+        err = signer.Serialize(buf)
         if err != nil {
             log.Error(err, "Unable to read the private key data from the signer")
             return ctrl.Result{}, err
         }
 
-        // buf writes the private and public key to signerData string
-        var signerData string
-
-        n, err := io.WriteString(buf, signerData)
-        if err != nil {
-            log.Error(err, "Unable to write signer buffer to a string")
-        }
-        // DEBUG:
-        log.Info("Logging signerData")
-        log.Info(signerData)
-        log.Info("Number of bytes written", "n", n)
+        // buf writes the private and public key to the signerData string
+        signerData := buf.String()
 
         signerSecret = &corev1.Secret{
             ObjectMeta: metav1.ObjectMeta{
                 Namespace: req.Namespace,
                 Name:      req.Name,
             },
-            Data: make(map[string][]byte),
+            Data: map[string][]byte{ "keys": []byte(signerData), },
         }
-
-        signerSecret.Data["keys"] = []byte(signerData)
 
         err = r.Create(ctx, signerSecret)
         if err != nil {
@@ -146,7 +135,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
         log.Info("Created the signer secret")
     }
 
-    // Secret did exist, or we created it and now have a signer
+    // Secret did exist, or we just created it 
 
     // TODO: Update the secret with the signer information?
 
