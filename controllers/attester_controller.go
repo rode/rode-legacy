@@ -17,7 +17,7 @@ package controllers
 
 import (
 	"context"
-    "bytes"
+  "bytes"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +41,10 @@ func (r *AttesterReconciler) ListAttesters() []attester.Attester {
 	return r.Attesters
 }
 
+var (
+    attesterFinalizerName = "attester.finalizers.rode.liatr.io"
+)
+
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters/status,verbs=get;update;patch
 
@@ -55,8 +59,22 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	err := r.Get(ctx, req.NamespacedName, att)
 	if err != nil {
 		log.Error(err, "Unable to load attester")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+    err = r.registerFinalizer(log, att)
+    if err != nil {
+        log.Error(err, "Error registering finalizer")
+    }
+
+    if !att.ObjectMeta.DeletionTimestamp.IsZero() && containsFinalizer(att.ObjectMeta.Finalizers, attesterFinalizerName) {
+        log.Info("Removing finalizer")
+
+        att.ObjectMeta.Finalizers = removeFinalizer(att.ObjectMeta.Finalizers, attesterFinalizerName)
+        err := r.Update(ctx, att)
+
+        return ctrl.Result{}, err
+    }
 
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
@@ -145,6 +163,19 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Attesters = append(r.Attesters, attester.NewAttester(req.Name, policy, signer))
 
 	return ctrl.Result{}, nil
+}
+
+func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rodev1.Attester) error {
+	if attester.ObjectMeta.DeletionTimestamp.IsZero() && !containsFinalizer(attester.ObjectMeta.Finalizers, attesterFinalizerName) {
+		logger.Info("Creating attester finalizer...")
+		attester.ObjectMeta.Finalizers = append(attester.ObjectMeta.Finalizers, attesterFinalizerName)
+
+		if err := r.Update(context.Background(), attester); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
