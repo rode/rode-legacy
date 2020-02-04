@@ -57,6 +57,54 @@ func (i *ecrCollector) Reconcile(ctx context.Context) error {
 }
 
 func (i *ecrCollector) Destroy(ctx context.Context) error {
+	ses := session.Must(session.NewSession(i.awsConfig))
+
+	if i.ruleComplete {
+		cwSvc := cloudwatchevents.New(ses)
+		ruleFound := false
+
+		req, listRulesResponse := cwSvc.ListRulesRequest(&cloudwatchevents.ListRulesInput{})
+		err := req.Send()
+		if err != nil {
+			return err
+		}
+
+		for _, rule := range listRulesResponse.Rules {
+			if *rule.Name == i.queueName {
+				ruleFound = true
+			}
+		}
+
+		if ruleFound {
+			req, _ := cwSvc.DeleteRuleRequest(&cloudwatchevents.DeleteRuleInput{
+				Name: &i.queueName,
+			})
+
+			err = req.Send()
+			if err != nil {
+				return err
+			}
+		}
+
+		i.logger.Info("successfully destroyed CW Event rule target", "queueName", i.queueName)
+		i.ruleComplete = false
+	}
+
+	if i.queueURL != "" {
+		sqsSvc := sqs.New(ses)
+		req, _ := sqsSvc.DeleteQueueRequest(&sqs.DeleteQueueInput{
+			QueueUrl: &i.queueURL,
+		})
+
+		err := req.Send()
+		if err != nil {
+			return err
+		}
+
+		i.logger.Info("successfully destroyed queue", "queue", i.queueURL)
+		i.queueURL = ""
+	}
+
 	return nil
 }
 
@@ -124,7 +172,7 @@ func (i *ecrCollector) reconcileCWEvent(ctx context.Context) error {
 		}
 	]
 }`, i.queueARN, aws.StringValue(ruleResp.RuleArn)))}})
-	req.Send()
+	err = req.Send()
 	if err != nil {
 		return err
 	}
