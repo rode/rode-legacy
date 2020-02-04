@@ -17,14 +17,11 @@ package controllers
 
 import (
 	"context"
-	"github.com/pkg/errors"
-	"time"
-
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/go-logr/logr"
 	"github.com/liatrio/rode/pkg/collector"
 	"github.com/liatrio/rode/pkg/occurrence"
-
-	"github.com/go-logr/logr"
+	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,7 +36,13 @@ type CollectorReconciler struct {
 	Scheme            *runtime.Scheme
 	AWSConfig         *aws.Config
 	OccurrenceCreator occurrence.Creator
-	Workers           map[string]chan interface{}
+	Workers           map[string]*CollectorWorker
+}
+
+type CollectorWorker struct {
+	context  context.Context
+	stopChan chan interface{}
+	cancel   context.CancelFunc
 }
 
 var (
@@ -71,7 +74,10 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !col.ObjectMeta.DeletionTimestamp.IsZero() && containsFinalizer(col.ObjectMeta.Finalizers, collectorFinalizerName) {
 		log.Info("stopping worker")
 
-		close(r.Workers[req.NamespacedName.String()])
+		collectorWorker := r.Workers[req.NamespacedName.String()]
+		collectorWorker.cancel()
+		<-collectorWorker.stopChan
+
 		delete(r.Workers, req.NamespacedName.String())
 
 		log.Info("removing finalizer")
@@ -85,13 +91,19 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var c collector.Collector
 	switch col.Spec.CollectorType {
 	case "ecr_event":
-		c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, r.OccurrenceCreator, col.Spec.ECR.QueueName)
+		c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
 	case "test":
-		c = collector.NewTestCollector(r.Log, r.OccurrenceCreator, "foo")
+		c = collector.NewTestCollector(r.Log, "foo")
 	default:
 		err = errors.New("Unknown collector type")
 		// Loud output when erroring, getting more reconciles than expected.
 		log.Error(err, "Unknown collector type")
+		return ctrl.Result{}, err
+	}
+
+	err = c.Reconcile(ctx)
+	if err != nil {
+		log.Error(err, "error reconciling collector")
 		return r.setCollectorActive(ctx, col, err)
 	}
 
@@ -99,8 +111,20 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return r.setCollectorActive(ctx, col, nil)
 	}
 
-	w := worker(ctx, r.Log, c)
-	r.Workers[req.NamespacedName.String()] = w
+	workerContext, cancel := context.WithCancel(ctx)
+	collectorWorker := CollectorWorker{
+		context:  workerContext,
+		stopChan: make(chan interface{}),
+		cancel:   cancel,
+	}
+
+	err = c.Start(collectorWorker.context, collectorWorker.stopChan, r.OccurrenceCreator)
+	if err != nil {
+		log.Error(err, "error starting collector")
+		return r.setCollectorActive(ctx, col, err)
+	}
+
+	r.Workers[req.NamespacedName.String()] = &collectorWorker
 
 	return r.setCollectorActive(ctx, col, nil)
 }
@@ -130,26 +154,6 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 	}
 
 	return nil
-}
-
-func worker(ctx context.Context, logger logr.Logger, c collector.Collector) chan interface{} {
-	ch := make(chan interface{})
-
-	go func() {
-		for range time.Tick(5 * time.Second) {
-			select {
-			case <-ch:
-				return
-			default:
-				err := c.Reconcile(ctx)
-				if err != nil {
-					logger.Error(err, "error reconciling collector")
-				}
-			}
-		}
-	}()
-
-	return ch
 }
 
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
