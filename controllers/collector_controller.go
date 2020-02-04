@@ -17,11 +17,12 @@ package controllers
 
 import (
 	"context"
-	"errors"
+	"github.com/pkg/errors"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/liatrio/rode/pkg/occurrence"
 	"github.com/liatrio/rode/pkg/collector"
+	"github.com/liatrio/rode/pkg/occurrence"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,7 +39,12 @@ type CollectorReconciler struct {
 	Scheme            *runtime.Scheme
 	AWSConfig         *aws.Config
 	OccurrenceCreator occurrence.Creator
+	Workers           map[string]chan interface{}
 }
+
+var (
+	collectorFinalizerName = "collectors.finalizers.rode.liatr.io"
+)
 
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors/status,verbs=get;update;patch
@@ -53,6 +59,26 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	err := r.Get(ctx, req.NamespacedName, col)
 	if err != nil {
 		log.Error(err, "Unable to load collector")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	err = r.registerFinalizer(log, col)
+	if err != nil {
+		log.Error(err, "error registering finalizer")
+		return ctrl.Result{}, err
+	}
+
+	if !col.ObjectMeta.DeletionTimestamp.IsZero() && containsFinalizer(col.ObjectMeta.Finalizers, collectorFinalizerName) {
+		log.Info("stopping worker")
+
+		close(r.Workers[req.NamespacedName.String()])
+		delete(r.Workers, req.NamespacedName.String())
+
+		log.Info("removing finalizer")
+
+		col.ObjectMeta.Finalizers = removeFinalizer(col.ObjectMeta.Finalizers, collectorFinalizerName)
+		err := r.Update(context.Background(), col)
+
 		return ctrl.Result{}, err
 	}
 
@@ -60,19 +86,70 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	switch col.Spec.CollectorType {
 	case "ecr_event":
 		c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, r.OccurrenceCreator, col.Spec.ECR.QueueName)
+	case "test":
+		c = collector.NewTestCollector(r.Log, r.OccurrenceCreator, "foo")
 	default:
 		err = errors.New("Unknown collector type")
 		// Loud output when erroring, getting more reconciles than expected.
 		log.Error(err, "Unknown collector type")
-		return ctrl.Result{}, err
+		return r.setCollectorActive(ctx, col, err)
 	}
-	err = c.Reconcile(ctx)
+
+	if _, exists := r.Workers[req.NamespacedName.String()]; exists {
+		return r.setCollectorActive(ctx, col, nil)
+	}
+
+	w := worker(ctx, r.Log, c)
+	r.Workers[req.NamespacedName.String()] = w
+
+	return r.setCollectorActive(ctx, col, nil)
+}
+
+func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector *rodev1.Collector, ctrlError error) (ctrl.Result, error) {
+	collector.Status.Active = ctrlError == nil
+	err := r.Status().Update(ctx, collector)
 	if err != nil {
-		log.Error(err, "Unable to load collector")
+		if ctrlError != nil {
+			return ctrl.Result{}, errors.Wrap(ctrlError, err.Error())
+		}
+
 		return ctrl.Result{}, err
 	}
 
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, ctrlError
+}
+
+func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *rodev1.Collector) error {
+	if collector.ObjectMeta.DeletionTimestamp.IsZero() && !containsFinalizer(collector.ObjectMeta.Finalizers, collectorFinalizerName) {
+		logger.Info("Creating collector finalizer...")
+		collector.ObjectMeta.Finalizers = append(collector.ObjectMeta.Finalizers, collectorFinalizerName)
+
+		if err := r.Update(context.Background(), collector); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func worker(ctx context.Context, logger logr.Logger, c collector.Collector) chan interface{} {
+	ch := make(chan interface{})
+
+	go func() {
+		for range time.Tick(5 * time.Second) {
+			select {
+			case <-ch:
+				return
+			default:
+				err := c.Reconcile(ctx)
+				if err != nil {
+					logger.Error(err, "error reconciling collector")
+				}
+			}
+		}
+	}()
+
+	return ch
 }
 
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {

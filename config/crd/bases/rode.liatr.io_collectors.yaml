@@ -8,6 +8,10 @@ metadata:
   creationTimestamp: null
   name: collectors.rode.liatr.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.active
+    name: ACTIVE
+    type: boolean
   group: rode.liatr.io
   names:
     kind: Collector
@@ -43,12 +47,10 @@ spec:
                   description: Denotes the name of the AWS SQS queue to collect events
                     from.
                   type: string
-              required:
-              - queueName
               type: object
             type:
               description: Type defines the type of collector that this is. Supported
-                values are ecr_event
+                values are ecr_event, test
               type: string
           required:
           - type
