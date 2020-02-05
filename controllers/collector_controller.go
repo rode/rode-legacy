@@ -40,9 +40,10 @@ type CollectorReconciler struct {
 }
 
 type CollectorWorker struct {
-	context  context.Context
-	stopChan chan interface{}
-	cancel   context.CancelFunc
+	context   context.Context
+	collector *collector.Collector
+	stopChan  chan interface{}
+	done      context.CancelFunc
 }
 
 var (
@@ -71,33 +72,47 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	var c collector.Collector
+	collectorWorker, collectorExists := r.Workers[req.NamespacedName.String()]
+	if collectorExists {
+		c = *collectorWorker.collector
+	} else {
+		switch col.Spec.CollectorType {
+		case "ecr_event":
+			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
+		case "test":
+			c = collector.NewTestCollector(r.Log, "foo")
+		default:
+			err = errors.New("Unknown collector type")
+			// Loud output when erroring, getting more reconciles than expected.
+			log.Error(err, "Unknown collector type")
+			return ctrl.Result{}, err
+		}
+	}
+
 	if !col.ObjectMeta.DeletionTimestamp.IsZero() && containsFinalizer(col.ObjectMeta.Finalizers, collectorFinalizerName) {
 		log.Info("stopping worker")
 
-		collectorWorker := r.Workers[req.NamespacedName.String()]
-		collectorWorker.cancel()
-		<-collectorWorker.stopChan
+		collectorWorker, ok := r.Workers[req.NamespacedName.String()]
+		if ok {
+			collectorWorker.done()
+			<-collectorWorker.stopChan
 
-		delete(r.Workers, req.NamespacedName.String())
+			delete(r.Workers, req.NamespacedName.String())
+		} else {
+			log.Info("worker not found for collector", "collector", req.NamespacedName.String())
+		}
+
+		err := c.Destroy(collectorWorker.context)
+		if err != nil {
+			return r.setCollectorActive(ctx, col, err)
+		}
 
 		log.Info("removing finalizer")
 
 		col.ObjectMeta.Finalizers = removeFinalizer(col.ObjectMeta.Finalizers, collectorFinalizerName)
-		err := r.Update(context.Background(), col)
+		err = r.Update(context.Background(), col)
 
-		return ctrl.Result{}, err
-	}
-
-	var c collector.Collector
-	switch col.Spec.CollectorType {
-	case "ecr_event":
-		c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
-	case "test":
-		c = collector.NewTestCollector(r.Log, "foo")
-	default:
-		err = errors.New("Unknown collector type")
-		// Loud output when erroring, getting more reconciles than expected.
-		log.Error(err, "Unknown collector type")
 		return ctrl.Result{}, err
 	}
 
@@ -107,15 +122,16 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return r.setCollectorActive(ctx, col, err)
 	}
 
-	if _, exists := r.Workers[req.NamespacedName.String()]; exists {
+	if collectorExists {
 		return r.setCollectorActive(ctx, col, nil)
 	}
 
 	workerContext, cancel := context.WithCancel(ctx)
-	collectorWorker := CollectorWorker{
-		context:  workerContext,
-		stopChan: make(chan interface{}),
-		cancel:   cancel,
+	collectorWorker = &CollectorWorker{
+		context:   workerContext,
+		collector: &c,
+		stopChan:  make(chan interface{}),
+		done:      cancel,
 	}
 
 	err = c.Start(collectorWorker.context, collectorWorker.stopChan, r.OccurrenceCreator)
@@ -124,7 +140,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return r.setCollectorActive(ctx, col, err)
 	}
 
-	r.Workers[req.NamespacedName.String()] = &collectorWorker
+	r.Workers[req.NamespacedName.String()] = collectorWorker
 
 	return r.setCollectorActive(ctx, col, nil)
 }
