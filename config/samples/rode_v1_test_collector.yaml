@@ -1,0 +1,6 @@
+apiVersion: rode.liatr.io/v1
+kind: Collector
+metadata:
+  name: test-collector
+spec:
+  type: test

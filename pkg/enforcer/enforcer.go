@@ -2,10 +2,10 @@ package enforcer
 
 import (
 	"context"
-	"net/http"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"encoding/json"
+	"net/http"
 
 	"github.com/go-logr/logr"
 
@@ -13,10 +13,10 @@ import (
 
 	"github.com/liatrio/rode/pkg/attester"
 
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	admissionv1 "k8s.io/api/admission/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Enforcer enforces attestations on a resource
@@ -58,7 +58,7 @@ func (e *enforcer) Enforce(ctx context.Context, namespace string, resourceURI st
 	result := &corev1.Namespace{}
 	err := e.client.Get(ctx, client.ObjectKey{
 		Namespace: "",
-		Name: namespace,
+		Name:      namespace,
 	}, result)
 
 	if err != nil {

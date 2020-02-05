@@ -22,12 +22,12 @@ import (
 // CollectorAWSConfig defines configuration for ECR type collectors.
 type CollectorECRConfig struct {
 	// Denotes the name of the AWS SQS queue to collect events from.
-	QueueName string `json:"queueName, omitempty"`
+	QueueName string `json:"queueName,omitempty"`
 }
 
 // CollectorSpec defines the desired state of Collector
 type CollectorSpec struct {
-	// Type defines the type of collector that this is. Supported values are ecr_event
+	// Type defines the type of collector that this is. Supported values are ecr_event, test
 	CollectorType string `json:"type"`
 	// Defines configuration for collectors of the ecr_event type.
 	// +optional
@@ -37,12 +37,12 @@ type CollectorSpec struct {
 // CollectorStatus defines the observed state of Collector
 type CollectorStatus struct {
 	// Denotes if the collector is correctly defined and active.
-	// +optional
 	Active bool `json:"active,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name=ACTIVE,type=boolean,JSONPath=".status.active"
 
 // Collector is the Schema for the collectors API
 type Collector struct {
