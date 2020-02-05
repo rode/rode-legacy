@@ -94,7 +94,6 @@ func main() {
 	if err = (&controllers.CollectorReconciler{
 		Client:            mgr.GetClient(),
 		Log:               ctrl.Log.WithName("controllers").WithName("Collector"),
-		Scheme:            mgr.GetScheme(),
 		AWSConfig:         awsConfig,
 		OccurrenceCreator: occurrenceCreator,
 		Workers:           make(map[string]*controllers.CollectorWorker),

@@ -16,7 +16,13 @@ limitations under the License.
 package controllers
 
 import (
+	"context"
+	"fmt"
+	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	"path/filepath"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -63,9 +69,6 @@ var _ = BeforeSuite(func(done Done) {
 	err = rodev1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = rodev1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	// +kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
@@ -80,3 +83,52 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).ToNot(HaveOccurred())
 })
+
+func Setup(ctx context.Context) *corev1.Namespace {
+	var stopChan chan struct{}
+	ns := &corev1.Namespace{}
+
+	BeforeEach(func() {
+		stopChan := make(chan struct{})
+
+		*ns = corev1.Namespace{
+			ObjectMeta: v1.ObjectMeta{
+				Name: fmt.Sprintf("rode-test-%s", rand.String(10)),
+			},
+		}
+
+		err := k8sClient.Create(ctx, ns)
+		Expect(err).ToNot(HaveOccurred(), "failed to create rode test namespace")
+
+		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+			Scheme:    scheme.Scheme,
+			Namespace: ns.Name,
+		})
+		Expect(err).ToNot(HaveOccurred(), "failed to create rode test manager")
+
+		collectorReconciler := CollectorReconciler{
+			Client:            mgr.GetClient(),
+			Log:               logf.Log,
+			AWSConfig:         nil,
+			OccurrenceCreator: nil,
+			Workers:           nil,
+		}
+
+		err = collectorReconciler.SetupWithManager(mgr)
+		Expect(err).NotTo(HaveOccurred(), "failed to setup rode collector reconciler")
+
+		go func() {
+			err := mgr.Start(stopChan)
+			Expect(err).NotTo(HaveOccurred(), "failed to start rode test manager")
+		}()
+	})
+
+	AfterEach(func() {
+		close(stopChan)
+
+		err := k8sClient.Delete(ctx, ns)
+		Expect(err).NotTo(HaveOccurred(), "failed to delete rode test namespace")
+	})
+
+	return ns
+}
