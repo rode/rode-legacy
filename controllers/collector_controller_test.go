@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"time"
 )
 
@@ -33,6 +32,7 @@ var _ = Context("collector controller", func() {
 			awsSession            *session.Session
 			sqsSvc                *sqs.SQS
 			cweventsSvc           *cloudwatchevents.CloudWatchEvents
+			shouldDestroy         = true
 		)
 
 		BeforeEach(func() {
@@ -52,24 +52,7 @@ var _ = Context("collector controller", func() {
 				},
 			}
 
-			err := k8sClient.Create(ctx, &collector)
-			Expect(err).ToNot(HaveOccurred(), "failed to create test collector")
-
-			Eventually(func() bool {
-				col := rodev1.Collector{}
-
-				err := k8sClient.Get(ctx, types.NamespacedName{
-					Name:      ecrCollectorName,
-					Namespace: namespace.Name,
-				}, &col)
-
-				if err != nil {
-					logf.Log.Info("error getting test collector", "error", err)
-					return false
-				}
-
-				return col.Status.Active
-			}, checkDuration, checkInterval).Should(BeTrue())
+			createCollector(ctx, &collector)
 
 			awsSession = session.Must(session.NewSession(awsConfig))
 			sqsSvc = sqs.New(awsSession)
@@ -77,31 +60,12 @@ var _ = Context("collector controller", func() {
 		})
 
 		AfterEach(func() {
-			collector := rodev1.Collector{}
+			if !shouldDestroy {
+				shouldDestroy = true
+				return
+			}
 
-			err := k8sClient.Get(ctx, types.NamespacedName{
-				Name:      ecrCollectorName,
-				Namespace: namespace.Name,
-			}, &collector)
-			Expect(err).ToNot(HaveOccurred(), "error getting test collector during destroy")
-
-			err = k8sClient.Delete(ctx, &collector)
-			Expect(err).ToNot(HaveOccurred(), "error destroying test collector")
-
-			Eventually(func() bool {
-				col := rodev1.Collector{}
-
-				err := k8sClient.Get(ctx, types.NamespacedName{
-					Name:      ecrCollectorName,
-					Namespace: namespace.Name,
-				}, &col)
-
-				if err == nil {
-					return false
-				}
-
-				return true
-			}, checkDuration, checkInterval).Should(BeTrue())
+			destroyCollector(ctx, ecrCollectorName, namespace.Name)
 		})
 
 		It("should have created an SQS queue", func() {
@@ -110,7 +74,7 @@ var _ = Context("collector controller", func() {
 			})
 
 			err := req.Send()
-			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue")
+			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue", err)
 
 			Expect(aws.StringValue(resp.QueueUrl)).To(ContainSubstring(ecrCollectorQueueName))
 		})
@@ -134,7 +98,7 @@ var _ = Context("collector controller", func() {
 			})
 
 			err = queueUrlReq.Send()
-			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue")
+			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue", err)
 
 			queueAttributesReq, queueAttributesResp := sqsSvc.GetQueueAttributesRequest(&sqs.GetQueueAttributesInput{
 				QueueUrl: queueUrlResp.QueueUrl,
@@ -144,9 +108,76 @@ var _ = Context("collector controller", func() {
 			})
 
 			err = queueAttributesReq.Send()
-			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue attributes")
+			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue attributes", err)
 
 			Expect(target.Arn).To(BeEquivalentTo(queueAttributesResp.Attributes["QueueArn"]))
 		})
+
+		It("should destroy AWS resources when deleted", func() {
+			destroyCollector(ctx, ecrCollectorName, namespace.Name)
+			shouldDestroy = false
+
+			cwRequest, _ := cweventsSvc.ListTargetsByRuleRequest(&cloudwatchevents.ListTargetsByRuleInput{
+				Rule: aws.String(ecrCollectorQueueName),
+			})
+
+			err := cwRequest.Send()
+			Expect(err).To(HaveOccurred(), "expected get operation for CW events rules to fail")
+
+			queueUrlReq, _ := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
+				QueueName: aws.String(ecrCollectorQueueName),
+			})
+
+			err = queueUrlReq.Send()
+			Expect(err).To(HaveOccurred(), "expected get operation for SQS queue to fail")
+		})
 	})
 })
+
+func createCollector(ctx context.Context, collector *rodev1.Collector) {
+	err := k8sClient.Create(ctx, collector)
+	Expect(err).ToNot(HaveOccurred(), "failed to create test collector", err)
+
+	Eventually(func() bool {
+		col := rodev1.Collector{}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      collector.Name,
+			Namespace: collector.Namespace,
+		}, &col)
+
+		if err != nil {
+			return false
+		}
+
+		return col.Status.Active
+	}, checkDuration, checkInterval).Should(BeTrue())
+}
+
+func destroyCollector(ctx context.Context, name, namespace string) {
+	collector := rodev1.Collector{}
+
+	err := k8sClient.Get(ctx, types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}, &collector)
+	Expect(err).ToNot(HaveOccurred(), "error getting test collector during destroy", err)
+
+	err = k8sClient.Delete(ctx, &collector)
+	Expect(err).ToNot(HaveOccurred(), "error destroying test collector", err)
+
+	Eventually(func() bool {
+		col := rodev1.Collector{}
+
+		err := k8sClient.Get(ctx, types.NamespacedName{
+			Name:      name,
+			Namespace: namespace,
+		}, &col)
+
+		if err == nil {
+			return false
+		}
+
+		return true
+	}, checkDuration, checkInterval).Should(BeTrue())
+}
