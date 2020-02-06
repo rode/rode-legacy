@@ -138,7 +138,7 @@ func createCollector(ctx context.Context, collector *rodev1.Collector) {
 	err := k8sClient.Create(ctx, collector)
 	Expect(err).ToNot(HaveOccurred(), "failed to create test collector", err)
 
-	Eventually(func() bool {
+	Eventually(func() rodev1.ConditionStatus {
 		col := rodev1.Collector{}
 
 		err := k8sClient.Get(ctx, types.NamespacedName{
@@ -147,11 +147,17 @@ func createCollector(ctx context.Context, collector *rodev1.Collector) {
 		}, &col)
 
 		if err != nil {
-			return false
+			return rodev1.ConditionStatusFalse
 		}
 
-		return col.Status.Active
-	}, checkDuration, checkInterval).Should(BeTrue())
+		for _, cond := range col.Status.Conditions {
+			if cond.Type == rodev1.CollectorConditionActive {
+				return cond.Status
+			}
+		}
+
+		return rodev1.ConditionStatusFalse
+	}, checkDuration, checkInterval).Should(BeEquivalentTo(rodev1.ConditionStatusTrue))
 }
 
 func destroyCollector(ctx context.Context, name, namespace string) {

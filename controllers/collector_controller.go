@@ -19,6 +19,7 @@ import (
 	"context"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-logr/logr"
+	"github.com/liatrio/rode/api/util"
 	"github.com/liatrio/rode/pkg/collector"
 	"github.com/liatrio/rode/pkg/occurrence"
 	"github.com/pkg/errors"
@@ -146,7 +147,16 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector *rodev1.Collector, ctrlError error) (ctrl.Result, error) {
-	collector.Status.Active = ctrlError == nil
+	var conditionStatus rodev1.ConditionStatus
+	var conditionMessage string
+	if ctrlError == nil {
+		conditionStatus = rodev1.ConditionStatusTrue
+	} else {
+		conditionStatus = rodev1.ConditionStatusFalse
+		conditionMessage = ctrlError.Error()
+	}
+
+	util.SetCollectorCondition(collector, rodev1.CollectorConditionActive, conditionStatus, conditionMessage)
 	err := r.Status().Update(ctx, collector)
 	if err != nil {
 		if ctrlError != nil {

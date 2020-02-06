@@ -36,13 +36,12 @@ type CollectorSpec struct {
 
 // CollectorStatus defines the observed state of Collector
 type CollectorStatus struct {
-	// Denotes if the collector is correctly defined and active.
-	Active bool `json:"active,omitempty"`
+	Conditions []CollectorCondition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name=ACTIVE,type=boolean,JSONPath=".status.active"
+// +kubebuilder:printcolumn:name="Active",type="string",JSONPath=".status.conditions[?(@.type==\"Active\")].status",description=""
 
 // Collector is the Schema for the collectors API
 type Collector struct {
