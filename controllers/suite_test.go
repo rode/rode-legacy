@@ -83,11 +83,12 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).ToNot(HaveOccurred(), "failed to create rode test manager")
 
-	err = (&AttesterReconciler{
+	attesterReconciler := &AttesterReconciler{
 		Client: mgr.GetClient(),
 		Log:    logf.Log,
 		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr)
+	}
+	err = attesterReconciler.SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred(), "failed to setup rode attester reconciler")
 
 	grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), "http://localhost:30443")
