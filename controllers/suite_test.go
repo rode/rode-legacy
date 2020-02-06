@@ -18,11 +18,17 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/liatrio/rode/pkg/attester"
+	"github.com/liatrio/rode/pkg/occurrence"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"path/filepath"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -42,6 +48,7 @@ import (
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
 var cfg *rest.Config
+var awsConfig *aws.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
 
@@ -88,8 +95,8 @@ func Setup(ctx context.Context) *corev1.Namespace {
 	var stopChan chan struct{}
 	ns := &corev1.Namespace{}
 
-	BeforeEach(func() {
-		stopChan := make(chan struct{})
+	BeforeEach(func(done Done) {
+		stopChan = make(chan struct{})
 
 		*ns = corev1.Namespace{
 			ObjectMeta: v1.ObjectMeta{
@@ -97,21 +104,33 @@ func Setup(ctx context.Context) *corev1.Namespace {
 			},
 		}
 
-		err := k8sClient.Create(ctx, ns)
-		Expect(err).ToNot(HaveOccurred(), "failed to create rode test namespace")
-
 		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
 			Scheme:    scheme.Scheme,
 			Namespace: ns.Name,
 		})
 		Expect(err).ToNot(HaveOccurred(), "failed to create rode test manager")
 
+		attesterReconciler := &AttesterReconciler{
+			Client: mgr.GetClient(),
+			Log:    logf.Log,
+			Scheme: mgr.GetScheme(),
+		}
+
+		err = attesterReconciler.SetupWithManager(mgr)
+		Expect(err).NotTo(HaveOccurred(), "failed to setup rode attester reconciler")
+
+		grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), "http://localhost:30443")
+		occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesterReconciler)
+
+		awsConfig = localstackAWSConfig()
+
 		collectorReconciler := CollectorReconciler{
 			Client:            mgr.GetClient(),
 			Log:               logf.Log,
-			AWSConfig:         nil,
-			OccurrenceCreator: nil,
-			Workers:           nil,
+			Scheme:            mgr.GetScheme(),
+			AWSConfig:         awsConfig,
+			OccurrenceCreator: occurrenceCreator,
+			Workers:           make(map[string]*CollectorWorker),
 		}
 
 		err = collectorReconciler.SetupWithManager(mgr)
@@ -121,6 +140,11 @@ func Setup(ctx context.Context) *corev1.Namespace {
 			err := mgr.Start(stopChan)
 			Expect(err).NotTo(HaveOccurred(), "failed to start rode test manager")
 		}()
+
+		err = k8sClient.Create(ctx, ns)
+		Expect(err).ToNot(HaveOccurred(), "failed to create rode test namespace")
+
+		close(done)
 	})
 
 	AfterEach(func() {
@@ -131,4 +155,27 @@ func Setup(ctx context.Context) *corev1.Namespace {
 	})
 
 	return ns
+}
+
+func localstackAWSConfig() *aws.Config {
+	cfg := &aws.Config{}
+	cfg.Region = aws.String(endpoints.UsEast1RegionID)
+	cfg.Credentials = credentials.AnonymousCredentials
+
+	localstackEndpoints := map[string]string{
+		"sqs":    "http://localhost:30576",
+		"events": "http://localhost:30587",
+	}
+
+	cfg.EndpointResolver = endpoints.ResolverFunc(func(service, region string, optFns ...func(options *endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+		if endpoint, ok := localstackEndpoints[strings.ToLower(service)]; ok {
+			return endpoints.ResolvedEndpoint{
+				URL: endpoint,
+			}, nil
+		}
+
+		return endpoints.DefaultResolver().EndpointFor(service, region, optFns...)
+	})
+
+	return cfg
 }
