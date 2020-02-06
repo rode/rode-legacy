@@ -83,13 +83,11 @@ var _ = BeforeSuite(func(done Done) {
 	})
 	Expect(err).ToNot(HaveOccurred(), "failed to create rode test manager")
 
-	attesterReconciler := &AttesterReconciler{
+	err = (&AttesterReconciler{
 		Client: mgr.GetClient(),
 		Log:    logf.Log,
 		Scheme: mgr.GetScheme(),
-	}
-
-	err = attesterReconciler.SetupWithManager(mgr)
+	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred(), "failed to setup rode attester reconciler")
 
 	grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), "http://localhost:30443")
@@ -97,16 +95,14 @@ var _ = BeforeSuite(func(done Done) {
 
 	awsConfig = localstackAWSConfig()
 
-	collectorReconciler := CollectorReconciler{
+	err = (&CollectorReconciler{
 		Client:            mgr.GetClient(),
 		Log:               logf.Log,
 		Scheme:            mgr.GetScheme(),
 		AWSConfig:         awsConfig,
 		OccurrenceCreator: occurrenceCreator,
 		Workers:           make(map[string]*CollectorWorker),
-	}
-
-	err = collectorReconciler.SetupWithManager(mgr)
+	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred(), "failed to setup rode collector reconciler")
 
 	go func() {
