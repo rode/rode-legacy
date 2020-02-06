@@ -89,7 +89,7 @@ var _ = Context("collector controller", func() {
 
 			Expect(cwResp.Targets).To(HaveLen(1))
 			target := cwResp.Targets[0]
-			Expect(*target.Id).To(BeIdenticalTo("RodeCollector"))
+			Expect(*target.Id).To(BeEquivalentTo("RodeCollector"))
 
 			// fetch queue ARN to assert against target
 
