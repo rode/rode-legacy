@@ -78,8 +78,43 @@ var _ = BeforeSuite(func(done Done) {
 
 	// +kubebuilder:scaffold:scheme
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).ToNot(HaveOccurred())
+	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
+		Scheme: scheme.Scheme,
+	})
+	Expect(err).ToNot(HaveOccurred(), "failed to create rode test manager")
+
+	attesterReconciler := &AttesterReconciler{
+		Client: mgr.GetClient(),
+		Log:    logf.Log,
+		Scheme: mgr.GetScheme(),
+	}
+
+	err = attesterReconciler.SetupWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred(), "failed to setup rode attester reconciler")
+
+	grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), "http://localhost:30443")
+	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesterReconciler)
+
+	awsConfig = localstackAWSConfig()
+
+	collectorReconciler := CollectorReconciler{
+		Client:            mgr.GetClient(),
+		Log:               logf.Log,
+		Scheme:            mgr.GetScheme(),
+		AWSConfig:         awsConfig,
+		OccurrenceCreator: occurrenceCreator,
+		Workers:           make(map[string]*CollectorWorker),
+	}
+
+	err = collectorReconciler.SetupWithManager(mgr)
+	Expect(err).NotTo(HaveOccurred(), "failed to setup rode collector reconciler")
+
+	go func() {
+		err := mgr.Start(ctrl.SetupSignalHandler())
+		Expect(err).NotTo(HaveOccurred(), "failed to start rode test manager")
+	}()
+
+	k8sClient = mgr.GetClient()
 	Expect(k8sClient).ToNot(BeNil())
 
 	close(done)
@@ -91,65 +126,21 @@ var _ = AfterSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 })
 
-func Setup(ctx context.Context) *corev1.Namespace {
-	var stopChan chan struct{}
+func SetupTestNamespace(ctx context.Context) *corev1.Namespace {
 	ns := &corev1.Namespace{}
 
-	BeforeEach(func(done Done) {
-		stopChan = make(chan struct{})
-
+	BeforeEach(func() {
 		*ns = corev1.Namespace{
 			ObjectMeta: v1.ObjectMeta{
 				Name: fmt.Sprintf("rode-test-%s", rand.String(10)),
 			},
 		}
 
-		mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-			Scheme:    scheme.Scheme,
-			Namespace: ns.Name,
-		})
-		Expect(err).ToNot(HaveOccurred(), "failed to create rode test manager")
-
-		attesterReconciler := &AttesterReconciler{
-			Client: mgr.GetClient(),
-			Log:    logf.Log,
-			Scheme: mgr.GetScheme(),
-		}
-
-		err = attesterReconciler.SetupWithManager(mgr)
-		Expect(err).NotTo(HaveOccurred(), "failed to setup rode attester reconciler")
-
-		grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), "http://localhost:30443")
-		occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesterReconciler)
-
-		awsConfig = localstackAWSConfig()
-
-		collectorReconciler := CollectorReconciler{
-			Client:            mgr.GetClient(),
-			Log:               logf.Log,
-			Scheme:            mgr.GetScheme(),
-			AWSConfig:         awsConfig,
-			OccurrenceCreator: occurrenceCreator,
-			Workers:           make(map[string]*CollectorWorker),
-		}
-
-		err = collectorReconciler.SetupWithManager(mgr)
-		Expect(err).NotTo(HaveOccurred(), "failed to setup rode collector reconciler")
-
-		go func() {
-			err := mgr.Start(stopChan)
-			Expect(err).NotTo(HaveOccurred(), "failed to start rode test manager")
-		}()
-
-		err = k8sClient.Create(ctx, ns)
+		err := k8sClient.Create(ctx, ns)
 		Expect(err).ToNot(HaveOccurred(), "failed to create rode test namespace")
-
-		close(done)
 	})
 
 	AfterEach(func() {
-		close(stopChan)
-
 		err := k8sClient.Delete(ctx, ns)
 		Expect(err).NotTo(HaveOccurred(), "failed to delete rode test namespace")
 	})

@@ -23,7 +23,7 @@ var (
 
 var _ = Context("collector controller", func() {
 	ctx := context.TODO()
-	namespace := Setup(ctx)
+	namespace := SetupTestNamespace(ctx)
 
 	When("an ECR collector is created", func() {
 		var (
