@@ -22,6 +22,7 @@ import (
 	"github.com/liatrio/rode/pkg/collector"
 	"github.com/liatrio/rode/pkg/occurrence"
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -32,6 +33,7 @@ import (
 type CollectorReconciler struct {
 	client.Client
 	Log               logr.Logger
+	Scheme            *runtime.Scheme
 	AWSConfig         *aws.Config
 	OccurrenceCreator occurrence.Creator
 	Workers           map[string]*CollectorWorker

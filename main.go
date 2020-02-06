@@ -88,12 +88,14 @@ func main() {
 	}
 
 	awsConfig := aws.NewAWSConfig(ctrl.Log.WithName("aws").WithName("AWSConfig"))
+
 	grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), os.Getenv("GRAFEAS_ENDPOINT"))
 	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters)
 
 	if err = (&controllers.CollectorReconciler{
 		Client:            mgr.GetClient(),
 		Log:               ctrl.Log.WithName("controllers").WithName("Collector"),
+		Scheme:            mgr.GetScheme(),
 		AWSConfig:         awsConfig,
 		OccurrenceCreator: occurrenceCreator,
 		Workers:           make(map[string]*controllers.CollectorWorker),
