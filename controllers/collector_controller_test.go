@@ -17,6 +17,11 @@ import (
 	"time"
 )
 
+var (
+	checkDuration = 20 * time.Second
+	checkInterval = 1 * time.Second
+)
+
 var _ = Context("collector controller", func() {
 	ctx := context.TODO()
 	namespace := Setup(ctx)
@@ -64,11 +69,39 @@ var _ = Context("collector controller", func() {
 				}
 
 				return col.Status.Active
-			}, 20*time.Second, 1*time.Second).Should(BeTrue())
+			}, checkDuration, checkInterval).Should(BeTrue())
 
 			awsSession = session.Must(session.NewSession(awsConfig))
 			sqsSvc = sqs.New(awsSession)
 			cweventsSvc = cloudwatchevents.New(awsSession)
+		})
+
+		AfterEach(func() {
+			collector := rodev1.Collector{}
+
+			err := k8sClient.Get(ctx, types.NamespacedName{
+				Name:      ecrCollectorName,
+				Namespace: namespace.Name,
+			}, &collector)
+			Expect(err).ToNot(HaveOccurred(), "error getting test collector during destroy")
+
+			err = k8sClient.Delete(ctx, &collector)
+			Expect(err).ToNot(HaveOccurred(), "error destroying test collector")
+
+			Eventually(func() bool {
+				col := rodev1.Collector{}
+
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      ecrCollectorName,
+					Namespace: namespace.Name,
+				}, &col)
+
+				if err == nil {
+					return false
+				}
+
+				return true
+			}, checkDuration, checkInterval).Should(BeTrue())
 		})
 
 		It("should have created an SQS queue", func() {
