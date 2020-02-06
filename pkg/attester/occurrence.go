@@ -10,7 +10,7 @@ import (
 )
 
 type Lister interface {
-	ListAttesters() []Attester
+	ListAttesters() map[string]Attester
 }
 
 type attestWrapper struct {

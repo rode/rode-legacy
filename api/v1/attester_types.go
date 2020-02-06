@@ -24,7 +24,7 @@ import (
 
 // +k8s:openapi-gen=true
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",priority=1
-// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"CompiledPolicy\")].status",description=""
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
@@ -123,6 +123,8 @@ const (
 	// - The target secret contains a private key valid for the certificate
 	// - The commonName and dnsNames attributes match those specified on the Certificate
 	AttesterConditionReady AttesterConditionType = "Ready"
+    AttesterConditionCompiled AttesterConditionType = "CompiledPolicy"
+    AttesterConditionSecret AttesterConditionType = "CreatedSecret"
 )
 
 func init() {
