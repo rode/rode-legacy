@@ -218,6 +218,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
             log.Info("Created the signer secret")
         }
     } else {
+        // The secret does exist
         // Get the secret, then recreate the signer via the secret data
         err := r.Get(ctx, req.NamespacedName, signerSecret)
         if err != nil {
@@ -243,6 +244,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 }
 
 func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rodev1.Attester) error {
+    // If the attester isn't being deleted and it doesn't contain a finalizer, then add one
 	if attester.ObjectMeta.DeletionTimestamp.IsZero() && !containsFinalizer(attester.ObjectMeta.Finalizers, attesterFinalizerName) {
 		logger.Info("Creating attester finalizer...")
 		attester.ObjectMeta.Finalizers = append(attester.ObjectMeta.Finalizers, attesterFinalizerName)
