@@ -88,10 +88,13 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Error(err, "Failed to get the secret")
 		}
 
-		err = r.Delete(ctx, secret)
-		if err != nil {
-			log.Error(err, "Failed to delete the secret")
-		}
+        if metav1.HasAnnotation(secret.ObjectMeta, "ownedByRode") {
+
+            err = r.Delete(ctx, secret)
+            if err != nil {
+                log.Error(err, "Failed to delete the secret")
+            }
+        }
 
 		// Deleting attester object
 		delete(r.Attesters, req.Name)
@@ -99,19 +102,19 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	// If there are 0 conditions then initialize conditions by adding two with unknown statuses
+	// If there are 0 conditions then initialize conditions by adding two with false statuses
 	if len(att.Status.Conditions) == 0 {
 
 		policyCondition := rodev1.AttesterCondition{
 			Type:   rodev1.AttesterConditionCompiled,
-			Status: rodev1.ConditionUnknown,
+			Status: rodev1.ConditionStatusFalse,
 		}
 
 		att.Status.Conditions = append(att.Status.Conditions, policyCondition)
 
 		secretCondition := rodev1.AttesterCondition{
 			Type:   rodev1.AttesterConditionSecret,
-			Status: rodev1.ConditionUnknown,
+			Status: rodev1.ConditionStatusFalse,
 		}
 
 		att.Status.Conditions = append(att.Status.Conditions, secretCondition)
@@ -126,7 +129,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
-		att.Status.Conditions[0].Status = rodev1.ConditionFalse
+		att.Status.Conditions[0].Status = rodev1.ConditionStatusFalse
 
 		if err := r.Status().Update(ctx, att); err != nil {
 			log.Error(err, "Unable to update Attester status")
@@ -135,7 +138,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	att.Status.Conditions[0].Status = rodev1.ConditionTrue
+	att.Status.Conditions[0].Status = rodev1.ConditionStatusTrue
 
 	if err := r.Status().Update(ctx, att); err != nil {
 		log.Error(err, "Unable to update Attester status")
@@ -146,7 +149,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var signer attester.Signer
 
 	// Check that the secret exists, if it does, recreate a signer from the secret
-	if att.Status.Conditions[1].Status != "True" {
+	if att.Status.Conditions[1].Status != rodev1.ConditionStatusTrue {
 
 		err = r.Get(ctx, req.NamespacedName, signerSecret)
 		if err != nil {
@@ -184,6 +187,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace: req.Namespace,
 					Name:      req.Name,
+                    Annotations: map[string]string{"ownedByRode":"true"},
 				},
 				Data: map[string][]byte{"keys": signerData},
 			}
@@ -191,7 +195,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			err = r.Create(ctx, signerSecret)
 			if err != nil {
 				log.Error(err, "Unable to create signer Secret")
-				att.Status.Conditions[1].Status = rodev1.ConditionFalse
+				att.Status.Conditions[1].Status = rodev1.ConditionStatusFalse
 
 				if err := r.Status().Update(ctx, att); err != nil {
 					log.Error(err, "Unable to update Attester status")
@@ -209,7 +213,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 
 			// Update the status to true
-			att.Status.Conditions[1].Status = rodev1.ConditionTrue
+			att.Status.Conditions[1].Status = rodev1.ConditionStatusTrue
 			if err := r.Status().Update(ctx, att); err != nil {
 				log.Error(err, "Unable to update Attester status")
 				return ctrl.Result{}, err

@@ -58,26 +58,6 @@ type AttesterSpec struct {
 	Policy string `json:"policy"`
 }
 
-// ConditionStatus represents a condition's status.
-// +kubebuilder:validation:Enum=True;False;Unknown
-type ConditionStatus string
-
-// These are valid condition statuses. "ConditionTrue" means a resource is in
-// the condition; "ConditionFalse" means a resource is not in the condition;
-// "ConditionUnknown" means kubernetes can't decide if a resource is in the
-// condition or not. In the future, we could add other intermediate
-// conditions, e.g. ConditionDegraded.
-const (
-	// ConditionTrue represents the fact that a given condition is true
-	ConditionTrue ConditionStatus = "True"
-
-	// ConditionFalse represents the fact that a given condition is false
-	ConditionFalse ConditionStatus = "False"
-
-	// ConditionUnknown represents the fact that a given condition is unknown
-	ConditionUnknown ConditionStatus = "Unknown"
-)
-
 // AttesterStatus defines the observed state of Attester
 type AttesterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
