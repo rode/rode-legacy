@@ -17,7 +17,6 @@ package controllers
 
 import (
 	"context"
-    "encoding/base64"
   "bytes"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -179,14 +178,14 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
             }
 
             // buf writes the private and public key to the signerData string
-            signerData := buf.String()
+            signerData := buf.Bytes()
 
             signerSecret = &corev1.Secret{
                 ObjectMeta: metav1.ObjectMeta{
                     Namespace: req.Namespace,
                     Name:      req.Name,
                 },
-                StringData: map[string]string{ "keys": signerData },
+                Data: map[string][]byte{ "keys": signerData },
             }
 
             err = r.Create(ctx, signerSecret)
@@ -220,10 +219,14 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
         }
     } else {
         // Recreate the signer via the secret
-        buf := bytes.NewBufferString(signerSecret.Data["keys"])
-        dec := base64.NewDecoder(base64.StdEncoding, buf)
+        log.Info("Contents of the secret", "keys", signerSecret.Data["keys"])
+        buf := bytes.NewBuffer(signerSecret.Data["keys"])
+        //dec := base64.NewDecoder(base64.StdEncoding, buf)
+        n := buf.Len()
 
-        signer, err = attester.ReadSigner(dec)
+        log.Info("Length of buffer", "n", n)
+
+        signer, err = attester.ReadSigner(buf)
         if err != nil {
             log.Error(err, "Unable to create signer from secret")
             return ctrl.Result{}, err
