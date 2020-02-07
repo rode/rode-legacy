@@ -17,7 +17,7 @@ package controllers
 
 import (
 	"context"
-    "errors"
+    "encoding/base64"
   "bytes"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -52,11 +52,6 @@ var (
 func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("attester", req.NamespacedName)
-
-    if r.Attesters == nil {
-        r.Attesters = make(map[string]attester.Attester)
-    }
-
 	opaTrace := false
 
 	log.Info("Reconciling attester")
@@ -99,13 +94,13 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
             log.Error(err, "Failed to delete the secret")
         }
 
-        // Deleting attester
+        // Deleting attester object
         delete(r.Attesters, req.Name)
 
         return ctrl.Result{}, err
     }
 
-    // If there are 0 conditions then initialize conditions by adding two conditions with unknown statuses
+    // If there are 0 conditions then initialize conditions by adding two with unknown statuses
     if len(att.Status.Conditions) == 0 {
 
         policyCondition := rodev1.AttesterCondition{
@@ -128,122 +123,116 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
         }
     }
 
+    // Always recompile the policy
+    policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
+    if err != nil {
+        log.Error(err, "Unable to create policy")
+        att.Status.Conditions[0].Status = rodev1.ConditionFalse
 
-	var signer attester.Signer
-    var policy attester.Policy
-
-    // Loop through the conditions, only do something if the status != True
-    for _, condition := range att.Status.Conditions {
-
-        if condition.Status != "True" {
-
-            switch condition.Type {
-                case rodev1.AttesterConditionCompiled:
-
-                    policy, err = attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
-                    if err != nil {
-                        log.Error(err, "Unable to create policy")
-                        att.Status.Conditions[0].Status = rodev1.ConditionFalse
-
-                        if err := r.Status().Update(ctx, att); err != nil {
-                            log.Error(err, "Unable to update Attester status")
-                            return ctrl.Result{}, err
-                        }
-                        return ctrl.Result{}, err
-                    }
-
-                    att.Status.Conditions[0].Status = rodev1.ConditionTrue
-
-                    if err := r.Status().Update(ctx, att); err != nil {
-                        log.Error(err, "Unable to update Attester status")
-                        return ctrl.Result{}, err
-                    }
-
-                case rodev1.AttesterConditionSecret:
-
-	                signerSecret := &corev1.Secret{}
-                    err = r.Get(ctx, req.NamespacedName, signerSecret)
-                    if err != nil {
-
-                        // If the secret wasn't found then create the secret
-                        if err.Error() != "Secret \"" + req.Name + "\" not found" {
-                            log.Error(err, "Unable to get the secret")
-                            return ctrl.Result{}, err
-                        }
-
-                        log.Info("Couldn't find secret, creating a new one")
-
-                        // Create a new signer
-                        signer, err = attester.NewSigner(req.Name)
-                        if err != nil {
-                            log.Error(err, "Unable to create signer")
-                            return ctrl.Result{}, err
-                        }
-                        log.Info("Created the signer successfully")
-
-                        var buffer []byte
-                        buf := bytes.NewBuffer(buffer)
-
-                        // signer.Serialize writes the public and private keys to a buffer object buf
-                        err = signer.Serialize(buf)
-                        if err != nil {
-                            log.Error(err, "Unable to read the private key data from the signer")
-                            return ctrl.Result{}, err
-                        }
-
-                        // buf writes the private and public key to the signerData string
-                        signerData := buf.String()
-
-                        signerSecret = &corev1.Secret{
-                            ObjectMeta: metav1.ObjectMeta{
-                                Namespace: req.Namespace,
-                                Name:      req.Name,
-                            },
-                            Data: map[string][]byte{ "keys": []byte(signerData), },
-                        }
-
-                        err = r.Create(ctx, signerSecret)
-                        if err != nil {
-                            log.Error(err, "Unable to create signer Secret")
-                            att.Status.Conditions[1].Status = rodev1.ConditionFalse
-
-                            if err := r.Status().Update(ctx, att); err != nil {
-                                log.Error(err, "Unable to update Attester status")
-                                return ctrl.Result{}, err
-                            }
-                            return ctrl.Result{}, err
-                        }
-
-                        // Set PgpSecret to newly created secret name
-                        att.Spec.PgpSecret = req.Name
-                        err = r.Update(ctx, att)
-                        if err != nil {
-                            log.Error(err, "Could not update attester's secret field")
-                            return ctrl.Result{}, err
-                        }
-
-                        // Update the status to true
-                        att.Status.Conditions[1].Status = rodev1.ConditionTrue
-                        if err := r.Status().Update(ctx, att); err != nil {
-                            log.Error(err, "Unable to update Attester status")
-                            return ctrl.Result{}, err
-                        }
-
-                        log.Info("Created the signer secret")
-                    }
-                default:
-                    err = errors.New("Unknown condition type")
-                    log.Error(err, "Unknown condition type")
-                    return ctrl.Result{}, err
-            }
+        if err := r.Status().Update(ctx, att); err != nil {
+            log.Error(err, "Unable to update Attester status")
+            return ctrl.Result{}, err
         }
+        return ctrl.Result{}, err
     }
 
-    // Create the new attester entry in the map, if it doesn't already exist
-    if r.Attesters[req.Name] == nil {
-        r.Attesters[req.Name] = attester.NewAttester(req.Name, policy, signer)
+    att.Status.Conditions[0].Status = rodev1.ConditionTrue
+
+    if err := r.Status().Update(ctx, att); err != nil {
+        log.Error(err, "Unable to update Attester status")
+        return ctrl.Result{}, err
     }
 
+    signerSecret := &corev1.Secret{}
+	var signer attester.Signer
+
+    // Check that the secret exists, if it does, recreate a signer from the secret
+    if att.Status.Conditions[1].Status != "True" {
+
+        err = r.Get(ctx, req.NamespacedName, signerSecret)
+        if err != nil {
+
+            // If the secret wasn't found then create the secret
+            if err.Error() != "Secret \"" + req.Name + "\" not found" {
+                log.Error(err, "Unable to get the secret")
+                return ctrl.Result{}, err
+            }
+
+            log.Info("Couldn't find secret, creating a new one")
+
+            // Create a new signer
+            signer, err = attester.NewSigner(req.Name)
+            if err != nil {
+                log.Error(err, "Unable to create signer")
+                return ctrl.Result{}, err
+            }
+            log.Info("Created the signer successfully")
+
+            var buffer []byte
+            buf := bytes.NewBuffer(buffer)
+
+            // signer.Serialize writes the public and private keys to a buffer object buf
+            err = signer.Serialize(buf)
+            if err != nil {
+                log.Error(err, "Unable to read the private key data from the signer")
+                return ctrl.Result{}, err
+            }
+
+            // buf writes the private and public key to the signerData string
+            signerData := buf.String()
+
+            signerSecret = &corev1.Secret{
+                ObjectMeta: metav1.ObjectMeta{
+                    Namespace: req.Namespace,
+                    Name:      req.Name,
+                },
+                StringData: map[string]string{ "keys": signerData },
+            }
+
+            err = r.Create(ctx, signerSecret)
+            if err != nil {
+                log.Error(err, "Unable to create signer Secret")
+                att.Status.Conditions[1].Status = rodev1.ConditionFalse
+
+                if err := r.Status().Update(ctx, att); err != nil {
+                    log.Error(err, "Unable to update Attester status")
+                    return ctrl.Result{}, err
+                }
+                return ctrl.Result{}, err
+            }
+
+            // Set PgpSecret to newly created secret name
+            att.Spec.PgpSecret = req.Name
+            err = r.Update(ctx, att)
+            if err != nil {
+                log.Error(err, "Could not update attester's secret field")
+                return ctrl.Result{}, err
+            }
+
+            // Update the status to true
+            att.Status.Conditions[1].Status = rodev1.ConditionTrue
+            if err := r.Status().Update(ctx, att); err != nil {
+                log.Error(err, "Unable to update Attester status")
+                return ctrl.Result{}, err
+            }
+
+            log.Info("Created the signer secret")
+        }
+    } else {
+        // Recreate the signer via the secret
+        buf := bytes.NewBufferString(signerSecret.Data["keys"])
+        dec := base64.NewDecoder(base64.StdEncoding, buf)
+
+        signer, err = attester.ReadSigner(dec)
+        if err != nil {
+            log.Error(err, "Unable to create signer from secret")
+            return ctrl.Result{}, err
+        }
+
+    }
+
+    // Create the attester in the map if it doesn't already exist, otherwise recreate it
+    r.Attesters[req.Name] = attester.NewAttester(req.Name, policy, signer)
 
 	return ctrl.Result{}, nil
 }

@@ -81,6 +81,7 @@ func main() {
 		Client: mgr.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("Attester"),
 		Scheme: mgr.GetScheme(),
+        Attesters: make(map[string]attester.Attester),
 	}
 	if err = attesters.SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Attester")
