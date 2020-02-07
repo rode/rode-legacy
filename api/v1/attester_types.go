@@ -83,7 +83,7 @@ type AttesterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-    // +optional
+	// +optional
 	Conditions []AttesterCondition `json:"conditions,omitempty"`
 }
 
@@ -116,15 +116,15 @@ type AttesterConditionType string
 
 const (
 	// AttesterConditionReady indicates that an attester is ready for use.
-    // TODO: Change this definition to what ready should mean
+	// TODO: Change this definition to what ready should mean
 	// This is defined as:
 	// - The target secret exists
 	// - The target secret contains a certificate that has not expired
 	// - The target secret contains a private key valid for the certificate
 	// - The commonName and dnsNames attributes match those specified on the Certificate
-	AttesterConditionReady AttesterConditionType = "Ready"
-    AttesterConditionCompiled AttesterConditionType = "CompiledPolicy"
-    AttesterConditionSecret AttesterConditionType = "CreatedSecret"
+	AttesterConditionReady    AttesterConditionType = "Ready"
+	AttesterConditionCompiled AttesterConditionType = "CompiledPolicy"
+	AttesterConditionSecret   AttesterConditionType = "CreatedSecret"
 )
 
 func init() {
