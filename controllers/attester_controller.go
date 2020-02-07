@@ -218,13 +218,15 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
             log.Info("Created the signer secret")
         }
     } else {
-        // Recreate the signer via the secret
-        log.Info("Contents of the secret", "keys", signerSecret.Data["keys"])
-        buf := bytes.NewBuffer(signerSecret.Data["keys"])
-        //dec := base64.NewDecoder(base64.StdEncoding, buf)
-        n := buf.Len()
+        // Get the secret, then recreate the signer via the secret data
+        err := r.Get(ctx, req.NamespacedName, signerSecret)
+        if err != nil {
+            log.Error(err, "Could not get secret")
+            return ctrl.Result{}, err
+        }
 
-        log.Info("Length of buffer", "n", n)
+        buf := bytes.NewBuffer(signerSecret.Data["keys"])
+
 
         signer, err = attester.ReadSigner(buf)
         if err != nil {
