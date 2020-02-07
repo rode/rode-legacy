@@ -156,7 +156,7 @@ func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector 
 		conditionMessage = ctrlError.Error()
 	}
 
-	util.SetCollectorCondition(collector, rodev1.CollectorConditionActive, conditionStatus, conditionMessage)
+	util.SetCollectorCondition(collector, rodev1.ConditionActive, conditionStatus, conditionMessage)
 	err := r.Status().Update(ctx, collector)
 	if err != nil {
 		if ctrlError != nil {

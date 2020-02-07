@@ -36,7 +36,7 @@ type CollectorSpec struct {
 
 // CollectorStatus defines the observed state of Collector
 type CollectorStatus struct {
-	Conditions []CollectorCondition `json:"conditions,omitempty"`
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true

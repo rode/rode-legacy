@@ -9,15 +9,17 @@ const (
 	ConditionStatusFalse ConditionStatus = "False"
 )
 
-type CollectorCondition struct {
-	Type               CollectorConditionType `json:"type"`
-	Status             ConditionStatus        `json:"status"`
-	LastTransitionTime *metav1.Time           `json:"lastTransitionTime,omitempty"`
-	Message            string                 `json:"message,omitempty"`
+type Condition struct {
+	Type               ConditionType   `json:"type"`
+	Status             ConditionStatus `json:"status"`
+	LastTransitionTime *metav1.Time    `json:"lastTransitionTime,omitempty"`
+	Message            string          `json:"message,omitempty"`
 }
 
-type CollectorConditionType string
+type ConditionType string
 
 const (
-	CollectorConditionActive CollectorConditionType = "Active"
+	ConditionActive   ConditionType = "Active"
+	ConditionCompiled ConditionType = "CompiledPolicy"
+	ConditionSecret   ConditionType = "CreatedSecret"
 )

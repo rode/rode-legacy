@@ -64,48 +64,8 @@ type AttesterStatus struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// +optional
-	Conditions []AttesterCondition `json:"conditions,omitempty"`
+	Conditions []Condition `json:"conditions,omitempty"`
 }
-
-// AttesterCondition contains condition information for an Attester.
-type AttesterCondition struct {
-	// Type of the condition, currently ('Ready').
-	Type AttesterConditionType `json:"type"`
-
-	// Status of the condition, one of ('True', 'False', 'Unknown').
-	Status ConditionStatus `json:"status"`
-
-	// LastTransitionTime is the timestamp corresponding to the last status
-	// change of this condition.
-	// +optional
-	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
-
-	// Reason is a brief machine readable explanation for the condition's last
-	// transition.
-	// +optional
-	Reason string `json:"reason,omitempty"`
-
-	// Message is a human readable description of the details of the last
-	// transition, complementing reason.
-	// +optional
-	Message string `json:"message,omitempty"`
-}
-
-// AttesterConditionType represents an Attester condition value.
-type AttesterConditionType string
-
-const (
-	// AttesterConditionReady indicates that an attester is ready for use.
-	// TODO: Change this definition to what ready should mean
-	// This is defined as:
-	// - The target secret exists
-	// - The target secret contains a certificate that has not expired
-	// - The target secret contains a private key valid for the certificate
-	// - The commonName and dnsNames attributes match those specified on the Certificate
-	AttesterConditionReady    AttesterConditionType = "Ready"
-	AttesterConditionCompiled AttesterConditionType = "CompiledPolicy"
-	AttesterConditionSecret   AttesterConditionType = "CreatedSecret"
-)
 
 func init() {
 	SchemeBuilder.Register(&Attester{}, &AttesterList{})

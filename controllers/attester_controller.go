@@ -88,13 +88,13 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Error(err, "Failed to get the secret")
 		}
 
-        if metav1.HasAnnotation(secret.ObjectMeta, "ownedByRode") {
+		if metav1.HasAnnotation(secret.ObjectMeta, "ownedByRode") {
 
-            err = r.Delete(ctx, secret)
-            if err != nil {
-                log.Error(err, "Failed to delete the secret")
-            }
-        }
+			err = r.Delete(ctx, secret)
+			if err != nil {
+				log.Error(err, "Failed to delete the secret")
+			}
+		}
 
 		// Deleting attester object
 		delete(r.Attesters, req.Name)
@@ -105,15 +105,15 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// If there are 0 conditions then initialize conditions by adding two with false statuses
 	if len(att.Status.Conditions) == 0 {
 
-		policyCondition := rodev1.AttesterCondition{
-			Type:   rodev1.AttesterConditionCompiled,
+		policyCondition := rodev1.Condition{
+			Type:   rodev1.ConditionCompiled,
 			Status: rodev1.ConditionStatusFalse,
 		}
 
 		att.Status.Conditions = append(att.Status.Conditions, policyCondition)
 
-		secretCondition := rodev1.AttesterCondition{
-			Type:   rodev1.AttesterConditionSecret,
+		secretCondition := rodev1.Condition{
+			Type:   rodev1.ConditionSecret,
 			Status: rodev1.ConditionStatusFalse,
 		}
 
@@ -185,9 +185,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 			signerSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Namespace: req.Namespace,
-					Name:      req.Name,
-                    Annotations: map[string]string{"ownedByRode":"true"},
+					Namespace:   req.Namespace,
+					Name:        req.Name,
+					Annotations: map[string]string{"ownedByRode": "true"},
 				},
 				Data: map[string][]byte{"keys": signerData},
 			}
