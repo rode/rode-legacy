@@ -32,8 +32,12 @@ profiles:
       value:
         grafeas:
           storageType: "memstore"
+          service:
+            type: NodePort
+            nodePort: 30443
         localstack:
           enabled: true
+          debug: true
           persistence:
             enabled: false
         extraEnv:

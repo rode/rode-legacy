@@ -242,7 +242,7 @@ func (i *ecrCollector) watchQueue(ctx context.Context, svc *sqs.SQS, occurrenceC
 	req, resp := svc.ReceiveMessageRequest(&sqs.ReceiveMessageInput{
 		QueueUrl:          aws.String(i.queueURL),
 		VisibilityTimeout: aws.Int64(10),
-		WaitTimeSeconds:   aws.Int64(20),
+		WaitTimeSeconds:   aws.Int64(5),
 	})
 
 	err := req.Send()

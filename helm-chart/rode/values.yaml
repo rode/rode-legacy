@@ -24,6 +24,7 @@ secret:
 
 localstack:
   enabled: false
+  debug: false
 
 image:
   repository: ""
