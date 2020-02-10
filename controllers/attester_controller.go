@@ -20,7 +20,6 @@ import (
 	"context"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -82,18 +81,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		// Deleting secret
-		secret := &corev1.Secret{}
-		err = r.Get(ctx, req.NamespacedName, secret)
+		err = attester.DeleteSecret(r.Client, req.Name, req.Namespace)
 		if err != nil {
-			log.Error(err, "Failed to get the secret")
-		}
-
-		if metav1.HasAnnotation(secret.ObjectMeta, "ownedByRode") {
-
-			err = r.Delete(ctx, secret)
-			if err != nil {
-				log.Error(err, "Failed to delete the secret")
-			}
+			log.Error(err, "Failed to delete the secret")
 		}
 
 		// Deleting attester object
@@ -162,44 +152,13 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 			log.Info("Couldn't find secret, creating a new one")
 
-			// Create a new signer
-			signer, err = attester.NewSigner(req.Name)
+			signer, err = attester.NewSecret(r.Client, req.Name, req.Namespace)
 			if err != nil {
-				log.Error(err, "Unable to create signer")
-				return ctrl.Result{}, err
-			}
-			log.Info("Created the signer successfully")
-
-			var buffer []byte
-			buf := bytes.NewBuffer(buffer)
-
-			// signer.Serialize writes the public and private keys to a buffer object buf
-			err = signer.Serialize(buf)
-			if err != nil {
-				log.Error(err, "Unable to read the private key data from the signer")
-				return ctrl.Result{}, err
-			}
-
-			// buf writes the private and public key to the signerData string
-			signerData := buf.Bytes()
-
-			signerSecret = &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Namespace:   req.Namespace,
-					Name:        req.Name,
-					Annotations: map[string]string{"ownedByRode": "true"},
-				},
-				Data: map[string][]byte{"keys": signerData},
-			}
-
-			err = r.Create(ctx, signerSecret)
-			if err != nil {
-				log.Error(err, "Unable to create signer Secret")
+				log.Error(err, "Failed to create the signer secret")
 				att.Status.Conditions[1].Status = rodev1.ConditionStatusFalse
 
-				if err := r.Status().Update(ctx, att); err != nil {
+				if err = r.Status().Update(ctx, att); err != nil {
 					log.Error(err, "Unable to update Attester status")
-					return ctrl.Result{}, err
 				}
 				return ctrl.Result{}, err
 			}
