@@ -3,11 +3,7 @@ package occurrence
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"io/ioutil"
-	"os"
-
 	"github.com/go-logr/logr"
 
 	"google.golang.org/grpc/codes"
@@ -31,27 +27,30 @@ type GrafeasClient interface {
 }
 
 // NewGrafeasClient creates a new client
-func NewGrafeasClient(log logr.Logger, endpoint string) GrafeasClient {
+func NewGrafeasClient(log logr.Logger, tlsConfig *tls.Config, endpoint string) (GrafeasClient, error) {
 	log.Info("Using Grafeas endpoint", "Endpoint", endpoint)
 
-	grpcDialOption, err := newGRPCDialOption(log)
-	if err != nil {
-		log.Error(err, "Unable to configure grafeas client")
-		return nil
-	}
+	grpcDialOption := grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig))
+
 	conn, err := grpc.Dial(endpoint, grpcDialOption)
+	if err != nil {
+		return nil, err
+	}
 
 	client := grafeas.NewGrafeasV1Beta1Client(conn)
 	c := &grafeasClient{
 		log,
 		client,
-		"rode",
+		"projects/rode",
 	}
 
 	projectClient := project.NewProjectsClient(conn)
-	c.initProject(context.Background(), projectClient)
+	err = c.initProject(context.Background(), projectClient)
+	if err != nil {
+		return nil, err
+	}
 
-	return c
+	return c, nil
 }
 
 // ListOccurrences will get the occurence for a resource
@@ -59,7 +58,7 @@ func (c *grafeasClient) ListOccurrences(ctx context.Context, resourceURI string)
 	c.log.Info("Get occurrences for resource", "resouceURI", resourceURI)
 
 	resp, err := c.client.ListOccurrences(ctx, &grafeas.ListOccurrencesRequest{
-		Parent:   fmt.Sprintf("projects/%s", c.projectID),
+		Parent:   c.projectID,
 		Filter:   fmt.Sprintf("resource.uri = '%s'", resourceURI),
 		PageSize: 1000,
 	})
@@ -88,7 +87,7 @@ func (c *grafeasClient) CreateOccurrences(ctx context.Context, occurrences ...*g
 	}
 	_, err := c.client.BatchCreateOccurrences(ctx, &grafeas.BatchCreateOccurrencesRequest{
 		Occurrences: occurrences,
-		Parent:      fmt.Sprintf("projects/%s", c.projectID),
+		Parent:      c.projectID,
 	})
 	return err
 }
@@ -107,30 +106,4 @@ func (c *grafeasClient) initProject(ctx context.Context, projectClient project.P
 		})
 	}
 	return err
-}
-
-func newGRPCDialOption(log logr.Logger) (grpc.DialOption, error) {
-	clientCert, err := tls.LoadX509KeyPair(os.Getenv("TLS_CLIENT_CERT"), os.Getenv("TLS_CLIENT_KEY"))
-	if err != nil {
-		log.Error(err, "Unable to load client cert")
-		return nil, err
-	}
-
-	cf, err := ioutil.ReadFile(os.Getenv("TLS_CA_CERT"))
-	if err != nil {
-		log.Error(err, "Unable to load CA cert")
-		return nil, err
-	}
-
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(cf)
-
-	tlsConfig := &tls.Config{
-		Certificates: []tls.Certificate{clientCert},
-		RootCAs:      caCertPool,
-		//InsecureSkipVerify: true,
-	}
-	tlsConfig.BuildNameToCertificate()
-	creds := credentials.NewTLS(tlsConfig)
-	return grpc.WithTransportCredentials(creds), nil
 }

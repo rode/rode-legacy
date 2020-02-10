@@ -16,7 +16,11 @@ limitations under the License.
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"flag"
+	"github.com/go-logr/logr"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -89,7 +93,17 @@ func main() {
 
 	awsConfig := aws.NewAWSConfig(ctrl.Log.WithName("aws").WithName("AWSConfig"))
 
-	grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), os.Getenv("GRAFEAS_ENDPOINT"))
+	grafeasTlsConfig, err := grafeasTlsConfig(setupLog)
+	if err != nil {
+		setupLog.Error(err, "error creating grafeas TLS config")
+		os.Exit(1)
+	}
+	grafeasClient, err := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), grafeasTlsConfig, os.Getenv("GRAFEAS_ENDPOINT"))
+	if err != nil {
+		setupLog.Error(err, "error initializing grafeas client")
+		os.Exit(1)
+	}
+
 	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters)
 
 	if err = (&controllers.CollectorReconciler{
@@ -128,4 +142,30 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func grafeasTlsConfig(log logr.Logger) (*tls.Config, error) {
+	clientCert, err := tls.LoadX509KeyPair(os.Getenv("TLS_CLIENT_CERT"), os.Getenv("TLS_CLIENT_KEY"))
+	if err != nil {
+		log.Error(err, "Unable to load client cert")
+		return nil, err
+	}
+
+	cf, err := ioutil.ReadFile(os.Getenv("TLS_CA_CERT"))
+	if err != nil {
+		log.Error(err, "Unable to load CA cert")
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(cf)
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      caCertPool,
+		//InsecureSkipVerify: true,
+	}
+	tlsConfig.BuildNameToCertificate()
+
+	return tlsConfig, nil
 }
