@@ -9,7 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
-	rodev1 "github.com/liatrio/rode/api/v1"
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/pkg/collector"
 	"github.com/liatrio/rode/pkg/test"
 	. "github.com/onsi/ginkgo"
@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	checkDuration = 20 * time.Second
+	checkDuration = 10 * time.Second
 	checkInterval = 1 * time.Second
 )
 
@@ -46,14 +46,14 @@ var _ = Context("collector controller", func() {
 			ecrCollectorName = fmt.Sprintf("test-ecr-collector-%s", rand.String(10))
 			ecrCollectorQueueName = fmt.Sprintf("test-queue-%s", rand.String(10))
 
-			collector := rodev1.Collector{
+			collector := rodev1alpha1.Collector{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      ecrCollectorName,
 					Namespace: namespace.Name,
 				},
-				Spec: rodev1.CollectorSpec{
+				Spec: rodev1alpha1.CollectorSpec{
 					CollectorType: "ecr_event",
-					ECR: rodev1.CollectorECRConfig{
+					ECR: rodev1alpha1.CollectorECRConfig{
 						QueueName: ecrCollectorQueueName,
 					},
 				},
@@ -179,12 +179,12 @@ func getExpectedNumberOfOccurrences(detail *collector.ECRImageScanDetail) int {
 	return result + len(detail.ImageTags)
 }
 
-func createCollector(ctx context.Context, collector *rodev1.Collector) {
+func createCollector(ctx context.Context, collector *rodev1alpha1.Collector) {
 	err := k8sClient.Create(ctx, collector)
 	Expect(err).ToNot(HaveOccurred(), "failed to create test collector", err)
 
-	Eventually(func() rodev1.ConditionStatus {
-		col := rodev1.Collector{}
+	Eventually(func() rodev1alpha1.ConditionStatus {
+		col := rodev1alpha1.Collector{}
 
 		err := k8sClient.Get(ctx, types.NamespacedName{
 			Name:      collector.Name,
@@ -192,21 +192,21 @@ func createCollector(ctx context.Context, collector *rodev1.Collector) {
 		}, &col)
 
 		if err != nil {
-			return rodev1.ConditionStatusFalse
+			return rodev1alpha1.ConditionStatusFalse
 		}
 
 		for _, cond := range col.Status.Conditions {
-			if cond.Type == rodev1.CollectorConditionActive {
+			if cond.Type == rodev1alpha1.CollectorConditionActive {
 				return cond.Status
 			}
 		}
 
-		return rodev1.ConditionStatusFalse
-	}, checkDuration, checkInterval).Should(BeEquivalentTo(rodev1.ConditionStatusTrue))
+		return rodev1alpha1.ConditionStatusFalse
+	}, checkDuration, checkInterval).Should(BeEquivalentTo(rodev1alpha1.ConditionStatusTrue))
 }
 
 func destroyCollector(ctx context.Context, name, namespace string) {
-	collector := rodev1.Collector{}
+	collector := rodev1alpha1.Collector{}
 
 	err := k8sClient.Get(ctx, types.NamespacedName{
 		Name:      name,
@@ -218,7 +218,7 @@ func destroyCollector(ctx context.Context, name, namespace string) {
 	Expect(err).ToNot(HaveOccurred(), "error destroying test collector", err)
 
 	Eventually(func() bool {
-		col := rodev1.Collector{}
+		col := rodev1alpha1.Collector{}
 
 		err := k8sClient.Get(ctx, types.NamespacedName{
 			Name:      name,

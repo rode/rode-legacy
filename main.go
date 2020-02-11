@@ -27,7 +27,7 @@ import (
 
 	"github.com/liatrio/rode/pkg/enforcer"
 
-	rodev1 "github.com/liatrio/rode/api/v1"
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/controllers"
 	"github.com/liatrio/rode/pkg/attester"
 	"github.com/liatrio/rode/pkg/aws"
@@ -48,7 +48,7 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
-	_ = rodev1.AddToScheme(scheme)
+	_ = rodev1alpha1.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
