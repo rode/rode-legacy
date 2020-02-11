@@ -46,3 +46,23 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - rode.liatr.io
+  resources:
+  - enforcers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rode.liatr.io
+  resources:
+  - enforcers/status
+  verbs:
+  - get
+  - patch
+  - update

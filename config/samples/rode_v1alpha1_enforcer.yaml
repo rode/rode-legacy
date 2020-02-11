@@ -1,0 +1,8 @@
+apiVersion: rode.liatr.io/v1alpha1
+kind: Enforcer
+metadata:
+  name: enforcer-sample
+spec:
+  attesters:
+    - name: sample-attester
+      namespace: default
