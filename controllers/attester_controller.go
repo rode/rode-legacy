@@ -20,6 +20,7 @@ import (
 	"context"
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,7 +68,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Error(err, "Error registering finalizer")
 	}
 
-	// If the attester is trying to be deleted remove the finalizer, delete the secret,
+	// If the attester is being deleted then remove the finalizer, delete the secret,
 	// and remove the Attester object from r.Attesters
 	if !att.ObjectMeta.DeletionTimestamp.IsZero() && containsFinalizer(att.ObjectMeta.Finalizers, attesterFinalizerName) {
 		log.Info("Removing finalizer")
@@ -81,13 +82,13 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		// Deleting secret
-		err = attester.DeleteSecret(r.Client, req.Name, req.Namespace)
+		err = attester.DeleteSecret(ctx, r.Client, req.NamespacedName)
 		if err != nil {
 			log.Error(err, "Failed to delete the secret")
 		}
 
 		// Deleting attester object
-		delete(r.Attesters, req.Name)
+		delete(r.Attesters, req.NamespacedName.String())
 
 		return ctrl.Result{}, err
 	}
@@ -119,21 +120,20 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
-		att.Status.Conditions[0].Status = rodev1.ConditionStatusFalse
+		//att.Status.Conditions[0].Status = rodev1.ConditionStatusFalse
 
-		if err := r.Status().Update(ctx, att); err != nil {
+		err = r.updateStatus(ctx, att, rodev1.ConditionCompiled, rodev1.ConditionStatusFalse)
+		if err != nil {
 			log.Error(err, "Unable to update Attester status")
-			return ctrl.Result{}, err
 		}
+
 		return ctrl.Result{}, err
 	}
 
-	att.Status.Conditions[0].Status = rodev1.ConditionStatusTrue
-
-	if err := r.Status().Update(ctx, att); err != nil {
-		log.Error(err, "Unable to update Attester status")
-		return ctrl.Result{}, err
-	}
+    err = r.updateStatus(ctx, att, rodev1.ConditionCompiled, rodev1.ConditionStatusTrue)
+    if err != nil {
+        log.Error(err, "Unable to update Attester status")
+    }
 
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
@@ -145,21 +145,21 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		if err != nil {
 
 			// If the secret wasn't found then create the secret
-			if err.Error() != "Secret \""+req.Name+"\" not found" {
+			if !errors.IsNotFound(err) {
 				log.Error(err, "Unable to get the secret")
 				return ctrl.Result{}, err
 			}
 
 			log.Info("Couldn't find secret, creating a new one")
 
-			signer, err = attester.NewSecret(r.Client, req.Name, req.Namespace)
+			signer, err = attester.NewSecret(ctx, r.Client, req.NamespacedName)
 			if err != nil {
 				log.Error(err, "Failed to create the signer secret")
-				att.Status.Conditions[1].Status = rodev1.ConditionStatusFalse
 
-				if err = r.Status().Update(ctx, att); err != nil {
-					log.Error(err, "Unable to update Attester status")
-				}
+				err = r.updateStatus(ctx, att, rodev1.ConditionSecret, rodev1.ConditionStatusFalse)
+                if err != nil {
+                    log.Error(err, "Unable to update Attester status")
+                }
 				return ctrl.Result{}, err
 			}
 
@@ -172,11 +172,10 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 
 			// Update the status to true
-			att.Status.Conditions[1].Status = rodev1.ConditionStatusTrue
-			if err := r.Status().Update(ctx, att); err != nil {
-				log.Error(err, "Unable to update Attester status")
-				return ctrl.Result{}, err
-			}
+			err = r.updateStatus(ctx, att, rodev1.ConditionSecret, rodev1.ConditionStatusTrue)
+            if err != nil {
+                log.Error(err, "Unable to update Attester status")
+            }
 
 			log.Info("Created the signer secret")
 		}
@@ -199,8 +198,8 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	}
 
-	// Create the attester in the map if it doesn't already exist, otherwise recreate it
-	r.Attesters[req.Name] = attester.NewAttester(req.Name, policy, signer)
+	// Create the attester if it doesn't already exist, otherwise update it
+	r.Attesters[req.NamespacedName.String()] = attester.NewAttester(req.NamespacedName.String(), policy, signer)
 
 	return ctrl.Result{}, nil
 }
@@ -214,6 +213,23 @@ func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rod
 		if err := r.Update(context.Background(), attester); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1.Attester, conditionType rodev1.ConditionType, status rodev1.ConditionStatus) error {
+
+	if conditionType == rodev1.ConditionCompiled {
+		attester.Status.Conditions[0].Status = status
+	}
+
+	if conditionType == rodev1.ConditionSecret {
+		attester.Status.Conditions[1].Status = status
+	}
+
+	if err := r.Status().Update(ctx, attester); err != nil {
+		return err
 	}
 
 	return nil

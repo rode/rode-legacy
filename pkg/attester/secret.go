@@ -5,6 +5,7 @@ import (
 	"context"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -12,11 +13,10 @@ import (
 // The name parameter is used to name the secret and the namespace parameter
 // is used to designate which namespace the secret is created in
 // The function returns a signer object to be used by the reconcile loop.
-func NewSecret(client client.Client, name string, namespace string) (Signer, error) {
-	ctx := context.Background()
+func NewSecret(ctx context.Context, client client.Client, namespacedName types.NamespacedName) (Signer, error) {
 
 	// Create a new signer
-	signer, err := NewSigner(name)
+	signer, err := NewSigner(namespacedName.String())
 	if err != nil {
 		return nil, err
 	}
@@ -36,12 +36,13 @@ func NewSecret(client client.Client, name string, namespace string) (Signer, err
 	// we create the secret with an annotation to let rode know that it owns the secret
 	signerSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace:   namespace,
-			Name:        name,
+			Namespace:   namespacedName.Namespace,
+			Name:        namespacedName.Name,
 			Annotations: map[string]string{"ownedByRode": "true"},
 		},
 		Data: map[string][]byte{"keys": signerData},
 	}
+	// TODO OwnerReferences implement!!!
 
 	err = client.Create(ctx, signerSecret)
 	if err != nil {
@@ -54,15 +55,10 @@ func NewSecret(client client.Client, name string, namespace string) (Signer, err
 // DeleteSecret uses the kubernetes client library to delete a named secret resource.
 // The name and namespace parameters are used to find the secret
 // The function returns an err if the deletion fails
-func DeleteSecret(c client.Client, name string, namespace string) error {
-
-	ctx := context.Background()
+func DeleteSecret(ctx context.Context, c client.Client, namespacedName types.NamespacedName) error {
 
 	secret := &corev1.Secret{}
-	err := c.Get(ctx, client.ObjectKey{
-		Namespace: namespace,
-		Name:      name,
-	}, secret)
+	err := c.Get(ctx, namespacedName, secret)
 	if err != nil {
 		return err
 	}
