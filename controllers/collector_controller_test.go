@@ -2,12 +2,16 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	rodev1 "github.com/liatrio/rode/api/v1"
+	"github.com/liatrio/rode/pkg/collector"
+	"github.com/liatrio/rode/pkg/test"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,10 +36,13 @@ var _ = Context("collector controller", func() {
 			awsSession            *session.Session
 			sqsSvc                *sqs.SQS
 			cweventsSvc           *cloudwatchevents.CloudWatchEvents
-			shouldDestroy         = true
+			shouldDestroy         bool
+			awsAccountNumber      = test.RandomAWSAccountNumber()
 		)
 
 		BeforeEach(func() {
+			shouldDestroy = true
+
 			ecrCollectorName = fmt.Sprintf("test-ecr-collector-%s", rand.String(10))
 			ecrCollectorQueueName = fmt.Sprintf("test-queue-%s", rand.String(10))
 
@@ -60,12 +67,9 @@ var _ = Context("collector controller", func() {
 		})
 
 		AfterEach(func() {
-			if !shouldDestroy {
-				shouldDestroy = true
-				return
+			if shouldDestroy {
+				destroyCollector(ctx, ecrCollectorName, namespace.Name)
 			}
-
-			destroyCollector(ctx, ecrCollectorName, namespace.Name)
 		})
 
 		It("should have created an SQS queue", func() {
@@ -131,8 +135,49 @@ var _ = Context("collector controller", func() {
 			err = queueUrlReq.Send()
 			Expect(err).To(HaveOccurred(), "expected get operation for SQS queue to fail")
 		})
+
+		It("should create an occurrence for ECR image scans", func() {
+			queueUrlReq, queueUrlResp := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
+				QueueName: aws.String(ecrCollectorQueueName),
+			})
+
+			err := queueUrlReq.Send()
+			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue", err)
+
+			queueUrl := queueUrlResp.QueueUrl
+
+			ecrImageScanDetail := createTestECRImageScanDetail(awsAccountNumber, *awsConfig.Region, "springtrader", "COMPLETE")
+			ecrImageScanEvent := createTestECRImageScanEvent(awsAccountNumber, *awsConfig.Region, "springtrader", ecrImageScanDetail)
+			ecrImageScanEventBody, err := json.Marshal(ecrImageScanEvent)
+			if err != nil {
+				Expect(err).ToNot(HaveOccurred(), "failed to marshal ecr image event to json", err)
+			}
+
+			sqsMessageBody := string(ecrImageScanEventBody)
+			sendMessageReq, _ := sqsSvc.SendMessageRequest(&sqs.SendMessageInput{
+				MessageBody: &sqsMessageBody,
+				QueueUrl:    queueUrl,
+			})
+
+			err = sendMessageReq.Send()
+			Expect(err).ToNot(HaveOccurred(), "failed to send ECR image action message", err)
+
+			expectedNumberOfOccurrences := getExpectedNumberOfOccurrences(ecrImageScanDetail)
+			Eventually(func() []*grafeas.Occurrence {
+				return getOccurrencesForQueue(ctx, ecrCollectorQueueName)
+			}, checkDuration, checkInterval).Should(HaveLen(expectedNumberOfOccurrences))
+		})
 	})
 })
+
+func getExpectedNumberOfOccurrences(detail *collector.ECRImageScanDetail) int {
+	result := 0
+	for _, numberOfVulns := range detail.FindingsSeverityCounts {
+		result += int(numberOfVulns) * len(detail.ImageTags)
+	}
+
+	return result + len(detail.ImageTags)
+}
 
 func createCollector(ctx context.Context, collector *rodev1.Collector) {
 	err := k8sClient.Create(ctx, collector)
@@ -186,4 +231,64 @@ func destroyCollector(ctx context.Context, name, namespace string) {
 
 		return true
 	}, checkDuration, checkInterval).Should(BeTrue())
+}
+
+func getOccurrencesForQueue(ctx context.Context, queueName string) []*grafeas.Occurrence {
+	var result []*grafeas.Occurrence
+
+	occurrences, err := grafeasClient.ListOccurrences(ctx, &grafeas.ListOccurrencesRequest{
+		Parent:   "projects/rode",
+		PageSize: 1000,
+	})
+	Expect(err).ToNot(HaveOccurred(), "failed listing grafeas occurrences", err)
+
+	for _, occurrence := range occurrences.Occurrences {
+		if occurrence.NoteName == collector.EcrOccurrenceNote(queueName) {
+			result = append(result, occurrence)
+		}
+	}
+
+	return result
+}
+
+func createTestECRImageScanDetail(account, region, repository, status string) *collector.ECRImageScanDetail {
+	severities := []string{
+		collector.ECR_Severity_CRITICAL,
+		collector.ECR_Severity_HIGH,
+		collector.ECR_Severity_MEDIUM,
+		collector.ECR_Severity_LOW,
+		collector.ECR_Severity_INFORMATIONAL,
+	}
+	randomSeverities := test.RandomStringSliceSubset(severities)
+
+	findingSeverityCounts := make(map[string]int64)
+	for _, v := range randomSeverities {
+		findingSeverityCounts[v] = int64(rand.Intn(10))
+	}
+
+	return &collector.ECRImageScanDetail{
+		ScanStatus:             status,
+		RepositoryName:         repository,
+		ImageDigest:            fmt.Sprintf("sha256:%s", test.CreateTestSha256(account, region, repository, status)),
+		ImageTags:              test.RandomStringSlice(),
+		FindingsSeverityCounts: findingSeverityCounts,
+	}
+}
+
+func createTestECRImageScanEvent(account, region, repository string, detail *collector.ECRImageScanDetail) *collector.CloudWatchEvent {
+	ecrImageScanDetailJson, _ := json.Marshal(detail)
+
+	return &collector.CloudWatchEvent{
+		Version:    "0",
+		ID:         "9e5f4498-b166-586f-1779-3589839bb916",
+		DetailType: "ECR Image Scan",
+		Source:     "aws.ecr",
+		AccountID:  account,
+		Time:       time.Now().UTC(),
+		Region:     region,
+		Resources: []string{
+			fmt.Sprintf("arn:aws:ecr:%s:%s:repository/%s", region, account, repository),
+		},
+		Detail: ecrImageScanDetailJson,
+	}
 }
