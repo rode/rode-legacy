@@ -35,10 +35,10 @@ type AttesterReconciler struct {
 	client.Client
 	Log       logr.Logger
 	Scheme    *runtime.Scheme
-	Attesters []attester.Attester
+	Attesters map[string]attester.Attester
 }
 
-func (r *AttesterReconciler) ListAttesters() []attester.Attester {
+func (r *AttesterReconciler) ListAttesters() map[string]attester.Attester {
 	return r.Attesters
 }
 
@@ -122,7 +122,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// TODO: update secret with signer material.
 
-	r.Attesters = append(r.Attesters, attester.NewAttester(req.Name, policy, signer))
+	r.Attesters[req.NamespacedName.String()] = attester.NewAttester(req.Name, policy, signer)
 
 	return ctrl.Result{}, nil
 }

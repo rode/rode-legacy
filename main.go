@@ -19,11 +19,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
-	"github.com/go-logr/logr"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"strings"
+
+	"github.com/go-logr/logr"
 
 	"github.com/liatrio/rode/pkg/enforcer"
 
@@ -118,6 +120,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err = (&controllers.EnforcerReconciler{
+		Client: mgr.GetClient(),
+		Log:    ctrl.Log.WithName("controllers").WithName("Enforcer"),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Enforcer")
+		os.Exit(1)
+	}
 	// +kubebuilder:scaffold:builder
 
 	excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
@@ -131,7 +141,7 @@ func main() {
 
 	mgr.AddHealthzCheck("test", checker)
 	mgr.AddReadyzCheck("test", checker)
-	mgr.GetWebhookServer().Register("/validate", enforcer)
+	mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 
 	// TODO: add occurrences route
 
