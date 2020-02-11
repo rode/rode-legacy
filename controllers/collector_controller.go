@@ -27,7 +27,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	rodev1 "github.com/liatrio/rode/api/v1"
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 )
 
 // CollectorReconciler reconciles a Collector object
@@ -60,7 +60,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	log.Info("Reconciling collector")
 
-	col := &rodev1.Collector{}
+	col := &rodev1alpha1.Collector{}
 	err := r.Get(ctx, req.NamespacedName, col)
 	if err != nil {
 		log.Error(err, "Unable to load collector")
@@ -146,17 +146,17 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return r.setCollectorActive(ctx, col, nil)
 }
 
-func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector *rodev1.Collector, ctrlError error) (ctrl.Result, error) {
-	var conditionStatus rodev1.ConditionStatus
+func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector *rodev1alpha1.Collector, ctrlError error) (ctrl.Result, error) {
+	var conditionStatus rodev1alpha1.ConditionStatus
 	var conditionMessage string
 	if ctrlError == nil {
-		conditionStatus = rodev1.ConditionStatusTrue
+		conditionStatus = rodev1alpha1.ConditionStatusTrue
 	} else {
-		conditionStatus = rodev1.ConditionStatusFalse
+		conditionStatus = rodev1alpha1.ConditionStatusFalse
 		conditionMessage = ctrlError.Error()
 	}
 
-	util.SetCollectorCondition(collector, rodev1.CollectorConditionActive, conditionStatus, conditionMessage)
+	util.SetCollectorCondition(collector, rodev1alpha1.CollectorConditionActive, conditionStatus, conditionMessage)
 	err := r.Status().Update(ctx, collector)
 	if err != nil {
 		if ctrlError != nil {
@@ -169,7 +169,7 @@ func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector 
 	return ctrl.Result{}, ctrlError
 }
 
-func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *rodev1.Collector) error {
+func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *rodev1alpha1.Collector) error {
 	if collector.ObjectMeta.DeletionTimestamp.IsZero() && !containsFinalizer(collector.ObjectMeta.Finalizers, collectorFinalizerName) {
 		logger.Info("Creating collector finalizer...")
 		collector.ObjectMeta.Finalizers = append(collector.ObjectMeta.Finalizers, collectorFinalizerName)
@@ -184,6 +184,6 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&rodev1.Collector{}).
+		For(&rodev1alpha1.Collector{}).
 		Complete(r)
 }

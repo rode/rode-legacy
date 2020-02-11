@@ -1,7 +1,7 @@
 package util
 
 import (
-	rodev1 "github.com/liatrio/rode/api/v1"
+	rodev1 "github.com/liatrio/rode/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/clock"
 )

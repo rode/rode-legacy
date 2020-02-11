@@ -1,4 +1,4 @@
-apiVersion: rode.liatr.io/v1
+apiVersion: rode.liatr.io/v1alpha1
 kind: Attester
 metadata:
   name: attester-sample

@@ -19,14 +19,14 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
+	"io"
 	corev1 "k8s.io/api/core/v1"
-    metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-    "io"
 
-	rodev1 "github.com/liatrio/rode/api/v1"
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/pkg/attester"
 )
 
@@ -52,7 +52,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	log.Info("Reconciling attester")
 
-	att := &rodev1.Attester{}
+	att := &rodev1alpha1.Attester{}
 	err := r.Get(ctx, req.NamespacedName, att)
 	if err != nil {
 		log.Error(err, "Unable to load attester")
@@ -79,46 +79,46 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
 
-    if att.Spec.PgpSecret == req.Name {
-        err := r.Get(ctx, client.ObjectKey{
-            Namespace: req.Namespace,
-            Name: att.Spec.PgpSecret,
-            }, signerSecret)
-        if err != nil {
-		    log.Error(err, "Unable to load signerSecret")
-		    return ctrl.Result{}, err
-        }
+	if att.Spec.PgpSecret == req.Name {
+		err := r.Get(ctx, client.ObjectKey{
+			Namespace: req.Namespace,
+			Name:      att.Spec.PgpSecret,
+		}, signerSecret)
+		if err != nil {
+			log.Error(err, "Unable to load signerSecret")
+			return ctrl.Result{}, err
+		}
 	} else {
-        signer, err = attester.NewSigner(req.Name)
+		signer, err = attester.NewSigner(req.Name)
 		if err != nil {
 			log.Error(err, "Unable to create signer")
 			return ctrl.Result{}, err
 		}
-        log.Info("Created the signer successfully")
+		log.Info("Created the signer successfully")
 
-        publicKey := signer.KeyID()
+		publicKey := signer.KeyID()
 
-        var out io.Writer
+		var out io.Writer
 
-        err := signer.Serialize(out)
+		err := signer.Serialize(out)
 
-        var privateKey string
+		var privateKey string
 
-        _, err = io.WriteString(out, privateKey)
+		_, err = io.WriteString(out, privateKey)
 
-        signerSecret = &corev1.Secret{
-            ObjectMeta: metav1.ObjectMeta{
-                Namespace: req.Namespace,
-                Name:      req.Name,
-            },
-            Data: map[string][]byte{"publicKey": []byte(publicKey), "privateKey": []byte(privateKey)},
-        }
-        err = r.Create(ctx, signerSecret)
-        if err != nil {
-            log.Error(err, "Unable to create signer Secret")
-            return ctrl.Result{}, err
-        }
-    }
+		signerSecret = &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: req.Namespace,
+				Name:      req.Name,
+			},
+			Data: map[string][]byte{"publicKey": []byte(publicKey), "privateKey": []byte(privateKey)},
+		}
+		err = r.Create(ctx, signerSecret)
+		if err != nil {
+			log.Error(err, "Unable to create signer Secret")
+			return ctrl.Result{}, err
+		}
+	}
 
 	// TODO: update secret with signer material.
 
@@ -129,6 +129,6 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&rodev1.Attester{}).
+		For(&rodev1alpha1.Attester{}).
 		Complete(r)
 }
