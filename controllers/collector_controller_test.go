@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	checkDuration = 10 * time.Second
+	checkDuration = 15 * time.Second
 	checkInterval = 1 * time.Second
 )
 
