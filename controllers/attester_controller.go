@@ -82,7 +82,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		// Deleting secret
-		err = attester.DeleteSecret(ctx, r.Client, req.NamespacedName)
+		err = attester.DeleteSecret(ctx, att, r.Client, req.NamespacedName)
 		if err != nil {
 			log.Error(err, "Failed to delete the secret")
 		}
@@ -95,7 +95,6 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// If there are 0 conditions then initialize conditions by adding two with false statuses
 	if len(att.Status.Conditions) == 0 {
-
 		policyCondition := rodev1alpha1.Condition{
 			Type:   rodev1alpha1.ConditionCompiled,
 			Status: rodev1alpha1.ConditionStatusFalse,
@@ -139,10 +138,8 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// Check that the secret exists, if it does, recreate a signer from the secret
 	if att.Status.Conditions[1].Status != rodev1alpha1.ConditionStatusTrue {
-
 		err = r.Get(ctx, req.NamespacedName, signerSecret)
 		if err != nil {
-
 			// If the secret wasn't found then create the secret
 			if !errors.IsNotFound(err) {
 				log.Error(err, "Unable to get the secret")
@@ -151,7 +148,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 			log.Info("Couldn't find secret, creating a new one")
 
-			signer, err = attester.NewSecret(ctx, r.Client, req.NamespacedName)
+			signer, err = attester.NewSecret(ctx, att, r.Client, req.NamespacedName)
 			if err != nil {
 				log.Error(err, "Failed to create the signer secret")
 
@@ -218,7 +215,6 @@ func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rod
 }
 
 func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1alpha1.Attester, conditionType rodev1alpha1.ConditionType, status rodev1alpha1.ConditionStatus) error {
-
 	if conditionType == rodev1alpha1.ConditionCompiled {
 		attester.Status.Conditions[0].Status = status
 	}
