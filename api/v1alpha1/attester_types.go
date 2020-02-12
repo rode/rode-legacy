@@ -71,3 +71,7 @@ type AttesterStatus struct {
 func init() {
 	SchemeBuilder.Register(&Attester{}, &AttesterList{})
 }
+
+func (a *Attester) GetConditions() []Condition {
+	return a.Status.Conditions
+}

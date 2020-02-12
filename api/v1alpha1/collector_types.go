@@ -65,3 +65,7 @@ type CollectorList struct {
 func init() {
 	SchemeBuilder.Register(&Collector{}, &CollectorList{})
 }
+
+func (c *Collector) GetConditions() []Condition {
+	return c.Status.Conditions
+}

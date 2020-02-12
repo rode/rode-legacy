@@ -1,10 +1,19 @@
 apiVersion: rode.liatr.io/v1alpha1
+kind: Collector
+metadata:
+  name: aws-ecr-event
+spec:
+  type: ecr_event
+  ecr:
+    queueName: rode-ecr-event-collector
+---
+apiVersion: rode.liatr.io/v1alpha1
 kind: Attester
 metadata:
-  name: sample
+  name: imagescan
 spec:
   policy: |
-    package sample
+    package imagescan
 
     violation[{"msg":"analysis failed"}]{
         input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"

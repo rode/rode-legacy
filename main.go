@@ -22,8 +22,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"strings"
+
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/go-logr/logr"
 
@@ -134,8 +135,6 @@ func main() {
 	excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
 	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
 
-	// TODO: add webhook route
-
 	checker := func(req *http.Request) error {
 		return nil
 	}
@@ -143,10 +142,6 @@ func main() {
 	mgr.AddHealthzCheck("test", checker)
 	mgr.AddReadyzCheck("test", checker)
 	mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
-
-	// TODO: add occurrences route
-
-	// TODO: setup TLS for endpoints
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

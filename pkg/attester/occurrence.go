@@ -66,14 +66,17 @@ func (a *attestWrapper) CreateOccurrences(ctx context.Context, occurrences ...*g
 					Occurrences: allOccurrences.GetOccurrences(),
 				})
 				if err != nil {
-					a.log.Error(err, "Unable to perform attestation for occurrence")
+					if vErr, ok := err.(ViolationError); ok {
+						a.log.Info("Attestion resulted in violations", "violations", vErr.Violations)
+					} else {
+						return fmt.Errorf("Unable to perform attestation for occurrence %v", err)
+					}
 				} else {
-					a.log.Info("Storing attestation for resource", uri)
+					a.log.Info("Storing attestation for resource", "uri", uri)
 					err = a.occurrenceCreator.CreateOccurrences(ctx, resp.Attestation)
-				}
-
-				if err != nil {
-					return fmt.Errorf("Unable to store attestation for occurrence %v", err)
+					if err != nil {
+						return fmt.Errorf("Unable to store attestation for occurrence %v", err)
+					}
 				}
 			}
 		}
