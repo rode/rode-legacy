@@ -22,8 +22,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strings"
-
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/go-logr/logr"
@@ -121,19 +119,9 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Collector")
 		os.Exit(1)
 	}
-
-	if err = (&controllers.EnforcerReconciler{
-		Client: mgr.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("Enforcer"),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Enforcer")
-		os.Exit(1)
-	}
 	// +kubebuilder:scaffold:builder
 
-	excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
-	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
+	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), attesters, grafeasClient, mgr.GetClient())
 
 	checker := func(req *http.Request) error {
 		return nil

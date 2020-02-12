@@ -4,5 +4,5 @@ metadata:
   name: enforcer-sample
 spec:
   attesters:
-    - name: sample-attester
+    - name: imagescan
       namespace: default

@@ -28,6 +28,15 @@ profiles:
     - kubeContext: docker-desktop
   patches:
     - op: add
+      path: /deploy/helm/flags
+      value:
+        global:
+          - '--tiller-namespace'
+          - 'rode'
+    - op: add
+      path: /deploy/helm/releases/0/namespace
+      value: rode
+    - op: add
       path: /deploy/helm/releases/0/overrides
       value:
         grafeas:
