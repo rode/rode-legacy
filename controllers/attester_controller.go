@@ -25,7 +25,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	rodev1 "github.com/liatrio/rode/api/v1"
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/pkg/attester"
 )
 
@@ -55,7 +55,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	log.Info("Reconciling attester")
 
-	att := &rodev1.Attester{}
+	att := &rodev1alpha1.Attester{}
 	err := r.Get(ctx, req.NamespacedName, att)
 	if err != nil {
 		log.Error(err, "Unable to load attester")
@@ -96,16 +96,16 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// If there are 0 conditions then initialize conditions by adding two with false statuses
 	if len(att.Status.Conditions) == 0 {
 
-		policyCondition := rodev1.Condition{
-			Type:   rodev1.ConditionCompiled,
-			Status: rodev1.ConditionStatusFalse,
+		policyCondition := rodev1alpha1.Condition{
+			Type:   rodev1alpha1.ConditionCompiled,
+			Status: rodev1alpha1.ConditionStatusFalse,
 		}
 
 		att.Status.Conditions = append(att.Status.Conditions, policyCondition)
 
-		secretCondition := rodev1.Condition{
-			Type:   rodev1.ConditionSecret,
-			Status: rodev1.ConditionStatusFalse,
+		secretCondition := rodev1alpha1.Condition{
+			Type:   rodev1alpha1.ConditionSecret,
+			Status: rodev1alpha1.ConditionStatusFalse,
 		}
 
 		att.Status.Conditions = append(att.Status.Conditions, secretCondition)
@@ -121,7 +121,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if err != nil {
 		log.Error(err, "Unable to create policy")
 
-		err = r.updateStatus(ctx, att, rodev1.ConditionCompiled, rodev1.ConditionStatusFalse)
+		err = r.updateStatus(ctx, att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusFalse)
 		if err != nil {
 			log.Error(err, "Unable to update Attester status")
 		}
@@ -129,7 +129,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	err = r.updateStatus(ctx, att, rodev1.ConditionCompiled, rodev1.ConditionStatusTrue)
+	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusTrue)
 	if err != nil {
 		log.Error(err, "Unable to update Attester status")
 	}
@@ -138,7 +138,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	var signer attester.Signer
 
 	// Check that the secret exists, if it does, recreate a signer from the secret
-	if att.Status.Conditions[1].Status != rodev1.ConditionStatusTrue {
+	if att.Status.Conditions[1].Status != rodev1alpha1.ConditionStatusTrue {
 
 		err = r.Get(ctx, req.NamespacedName, signerSecret)
 		if err != nil {
@@ -155,7 +155,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			if err != nil {
 				log.Error(err, "Failed to create the signer secret")
 
-				err = r.updateStatus(ctx, att, rodev1.ConditionSecret, rodev1.ConditionStatusFalse)
+				err = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse)
 				if err != nil {
 					log.Error(err, "Unable to update Attester status")
 				}
@@ -171,7 +171,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 
 			// Update the status to true
-			err = r.updateStatus(ctx, att, rodev1.ConditionSecret, rodev1.ConditionStatusTrue)
+			err = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue)
 			if err != nil {
 				log.Error(err, "Unable to update Attester status")
 			}
@@ -203,7 +203,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rodev1.Attester) error {
+func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rodev1alpha1.Attester) error {
 	// If the attester isn't being deleted and it doesn't contain a finalizer, then add one
 	if attester.ObjectMeta.DeletionTimestamp.IsZero() && !containsFinalizer(attester.ObjectMeta.Finalizers, attesterFinalizerName) {
 		logger.Info("Creating attester finalizer...")
@@ -217,13 +217,13 @@ func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rod
 	return nil
 }
 
-func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1.Attester, conditionType rodev1.ConditionType, status rodev1.ConditionStatus) error {
+func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1alpha1.Attester, conditionType rodev1alpha1.ConditionType, status rodev1alpha1.ConditionStatus) error {
 
-	if conditionType == rodev1.ConditionCompiled {
+	if conditionType == rodev1alpha1.ConditionCompiled {
 		attester.Status.Conditions[0].Status = status
 	}
 
-	if conditionType == rodev1.ConditionSecret {
+	if conditionType == rodev1alpha1.ConditionSecret {
 		attester.Status.Conditions[1].Status = status
 	}
 
@@ -236,6 +236,6 @@ func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1.
 
 func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&rodev1.Attester{}).
+		For(&rodev1alpha1.Attester{}).
 		Complete(r)
 }

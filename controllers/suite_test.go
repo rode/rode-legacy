@@ -17,24 +17,26 @@ package controllers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
-	"github.com/liatrio/rode/pkg/attester"
-	"github.com/liatrio/rode/pkg/occurrence"
+	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
+	"google.golang.org/grpc"
+	grpcCredentials "google.golang.org/grpc/credentials"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"path/filepath"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	rodev1 "github.com/liatrio/rode/api/v1"
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -47,10 +49,13 @@ import (
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-var cfg *rest.Config
-var awsConfig *aws.Config
-var k8sClient client.Client
-var testEnv *envtest.Environment
+var (
+	cfg           *rest.Config
+	awsConfig     *aws.Config
+	k8sClient     client.Client
+	testEnv       *envtest.Environment
+	grafeasClient grafeas.GrafeasV1Beta1Client
+)
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -60,12 +65,14 @@ func TestAPIs(t *testing.T) {
 		[]Reporter{envtest.NewlineReporter{}})
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
 
 	By("bootstrapping test environment")
+
+	useExistingCluster := true
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
+		UseExistingCluster: &useExistingCluster,
 	}
 
 	var err error
@@ -73,48 +80,19 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	err = rodev1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
-	// +kubebuilder:scaffold:scheme
-
-	mgr, err := ctrl.NewManager(cfg, ctrl.Options{
-		Scheme: scheme.Scheme,
-	})
-	Expect(err).ToNot(HaveOccurred(), "failed to create rode test manager")
-
-	attesterReconciler := &AttesterReconciler{
-		Client: mgr.GetClient(),
-		Log:    logf.Log,
-		Scheme: mgr.GetScheme(),
-	}
-	err = attesterReconciler.SetupWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred(), "failed to setup rode attester reconciler")
-
-	grafeasClient := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), "http://localhost:30443")
-	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesterReconciler)
-
 	awsConfig = localstackAWSConfig()
 
-	err = (&CollectorReconciler{
-		Client:            mgr.GetClient(),
-		Log:               logf.Log,
-		Scheme:            mgr.GetScheme(),
-		AWSConfig:         awsConfig,
-		OccurrenceCreator: occurrenceCreator,
-		Workers:           make(map[string]*CollectorWorker),
-	}).SetupWithManager(mgr)
-	Expect(err).NotTo(HaveOccurred(), "failed to setup rode collector reconciler")
+	err = rodev1alpha1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
 
-	go func() {
-		err := mgr.Start(ctrl.SetupSignalHandler())
-		Expect(err).NotTo(HaveOccurred(), "failed to start rode test manager")
-	}()
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).ToNot(HaveOccurred())
 
-	k8sClient = mgr.GetClient()
-	Expect(k8sClient).ToNot(BeNil())
+	tlsConfig, err := testGrafeasTlsConfig(context.Background(), k8sClient)
+	Expect(err).ToNot(HaveOccurred())
 
-	close(done)
+	grafeasClient, err = testGrafeasClient(tlsConfig)
+	Expect(err).ToNot(HaveOccurred())
 }, 60)
 
 var _ = AfterSuite(func() {
@@ -166,4 +144,42 @@ func localstackAWSConfig() *aws.Config {
 	})
 
 	return cfg
+}
+
+func testGrafeasTlsConfig(ctx context.Context, k8sClient client.Client) (*tls.Config, error) {
+	grafeasTlsSecret := corev1.Secret{}
+	err := k8sClient.Get(ctx, types.NamespacedName{
+		Namespace: "default",
+		Name:      "grafeas-ssl-certs",
+	}, &grafeasTlsSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	clientCert, err := tls.X509KeyPair(grafeasTlsSecret.Data["tls.crt"], grafeasTlsSecret.Data["tls.key"])
+	if err != nil {
+		return nil, err
+	}
+
+	caCert := grafeasTlsSecret.Data["ca.crt"]
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{clientCert},
+		RootCAs:      caCertPool,
+	}
+	tlsConfig.BuildNameToCertificate()
+
+	return tlsConfig, nil
+}
+
+func testGrafeasClient(tlsConfig *tls.Config) (grafeas.GrafeasV1Beta1Client, error) {
+	conn, err := grpc.Dial("localhost:30443", grpc.WithTransportCredentials(grpcCredentials.NewTLS(tlsConfig)))
+	if err != nil {
+		return nil, err
+	}
+
+	return grafeas.NewGrafeasV1Beta1Client(conn), nil
 }
