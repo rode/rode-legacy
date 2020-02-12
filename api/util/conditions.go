@@ -6,8 +6,8 @@ import (
 	"k8s.io/utils/clock"
 )
 
-func SetCollectorCondition(col *rodev1.Collector, conditionType rodev1.CollectorConditionType, status rodev1.ConditionStatus, message string) {
-	condition := rodev1.CollectorCondition{
+func SetCollectorCondition(col *rodev1.Collector, conditionType rodev1.ConditionType, status rodev1.ConditionStatus, message string) {
+	condition := rodev1.Condition{
 		Type:    conditionType,
 		Status:  status,
 		Message: message,

@@ -22,30 +22,10 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// AttesterSpec defines the desired state of Attester
-type AttesterSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// PgpSecret defines the name of the secret to use for signing. If the secret doesn't already exist it will be created.
-	// +optional
-	PgpSecret string `json:"pgpSecret"`
-	// Policy defines the Rego policy that the attester will attest adherance to.
-	Policy string `json:"policy"`
-}
-
-// AttesterStatus defines the observed state of Attester
-type AttesterStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// CompiledPolicy defines whether or not the policy compiled correctly
-	CompiledPolicy string `json:"compiledPolicy"`
-
-	// ValidAttester defines whether or not the attester is valid
-	ValidAttester bool `json:"validAttester"`
-}
-
+// +k8s:openapi-gen=true
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"CompiledPolicy\")].message",priority=1
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"CompiledPolicy\")].status",description=""
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
@@ -65,6 +45,27 @@ type AttesterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Attester `json:"items"`
+}
+
+// AttesterSpec defines the desired state of Attester
+type AttesterSpec struct {
+	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+
+	// PgpSecret defines the name of the secret to use for signing. If the secret doesn't already exist it will be created.
+	// +optional
+	PgpSecret string `json:"pgpSecret"`
+	// Policy defines the Rego policy that the attester will attest adherance to.
+	Policy string `json:"policy"`
+}
+
+// AttesterStatus defines the observed state of Attester
+type AttesterStatus struct {
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+
+	// +optional
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 func init() {

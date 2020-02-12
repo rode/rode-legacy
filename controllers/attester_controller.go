@@ -16,12 +16,11 @@ limitations under the License.
 package controllers
 
 import (
+	"bytes"
 	"context"
-
 	"github.com/go-logr/logr"
-	"io"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,12 +34,16 @@ type AttesterReconciler struct {
 	client.Client
 	Log       logr.Logger
 	Scheme    *runtime.Scheme
-	Attesters []attester.Attester
+	Attesters map[string]attester.Attester
 }
 
-func (r *AttesterReconciler) ListAttesters() []attester.Attester {
+func (r *AttesterReconciler) ListAttesters() map[string]attester.Attester {
 	return r.Attesters
 }
+
+var (
+	attesterFinalizerName = "attester.finalizers.rode.liatr.io"
+)
 
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters/status,verbs=get;update;patch
@@ -56,75 +59,175 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	err := r.Get(ctx, req.NamespacedName, att)
 	if err != nil {
 		log.Error(err, "Unable to load attester")
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+
+	// Register finalizer
+	err = r.registerFinalizer(log, att)
+	if err != nil {
+		log.Error(err, "Error registering finalizer")
+	}
+
+	// If the attester is being deleted then remove the finalizer, delete the secret,
+	// and remove the Attester object from r.Attesters
+	if !att.ObjectMeta.DeletionTimestamp.IsZero() && containsFinalizer(att.ObjectMeta.Finalizers, attesterFinalizerName) {
+		log.Info("Removing finalizer")
+
+		// Removing finalizer
+		att.ObjectMeta.Finalizers = removeFinalizer(att.ObjectMeta.Finalizers, attesterFinalizerName)
+		err := r.Update(ctx, att)
+		if err != nil {
+			log.Error(err, "Error Removing the finalizer")
+			return ctrl.Result{}, err
+		}
+
+		// Deleting secret
+		err = attester.DeleteSecret(ctx, att, r.Client, req.NamespacedName)
+		if err != nil {
+			log.Error(err, "Failed to delete the secret")
+		}
+
+		// Deleting attester object
+		delete(r.Attesters, req.NamespacedName.String())
+
 		return ctrl.Result{}, err
 	}
 
+	// If there are 0 conditions then initialize conditions by adding two with false statuses
+	if len(att.Status.Conditions) == 0 {
+		policyCondition := rodev1alpha1.Condition{
+			Type:   rodev1alpha1.ConditionCompiled,
+			Status: rodev1alpha1.ConditionStatusFalse,
+		}
+
+		att.Status.Conditions = append(att.Status.Conditions, policyCondition)
+
+		secretCondition := rodev1alpha1.Condition{
+			Type:   rodev1alpha1.ConditionSecret,
+			Status: rodev1alpha1.ConditionStatusFalse,
+		}
+
+		att.Status.Conditions = append(att.Status.Conditions, secretCondition)
+
+		if err := r.Status().Update(ctx, att); err != nil {
+			log.Error(err, "Unable to initialize attester status")
+			return ctrl.Result{}, err
+		}
+	}
+
+	// Always recompile the policy
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
-		att.Status.CompiledPolicy = "Failed to compile"
+
+		err = r.updateStatus(ctx, att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusFalse)
+		if err != nil {
+			log.Error(err, "Unable to update Attester status")
+		}
+
 		return ctrl.Result{}, err
 	}
 
-	// TODO: update status based on results of compiling the policy
-	att.Status.CompiledPolicy = "Compiled"
-
-	if err := r.Status().Update(ctx, att); err != nil {
+	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusTrue)
+	if err != nil {
 		log.Error(err, "Unable to update Attester status")
-		return ctrl.Result{}, err
 	}
-
-	// TODO: check if secret already exists before doing this...maybe just load secret
 
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
 
-	if att.Spec.PgpSecret == req.Name {
-		err := r.Get(ctx, client.ObjectKey{
-			Namespace: req.Namespace,
-			Name:      att.Spec.PgpSecret,
-		}, signerSecret)
+	// Check that the secret exists, if it does, recreate a signer from the secret
+	if att.Status.Conditions[1].Status != rodev1alpha1.ConditionStatusTrue {
+		err = r.Get(ctx, req.NamespacedName, signerSecret)
 		if err != nil {
-			log.Error(err, "Unable to load signerSecret")
-			return ctrl.Result{}, err
+			// If the secret wasn't found then create the secret
+			if !errors.IsNotFound(err) {
+				log.Error(err, "Unable to get the secret")
+				return ctrl.Result{}, err
+			}
+
+			log.Info("Couldn't find secret, creating a new one")
+
+			signer, err = attester.NewSecret(ctx, att, r.Client, req.NamespacedName)
+			if err != nil {
+				log.Error(err, "Failed to create the signer secret")
+
+				err = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse)
+				if err != nil {
+					log.Error(err, "Unable to update Attester status")
+				}
+				return ctrl.Result{}, err
+			}
+
+			// Set PgpSecret to newly created secret name
+			att.Spec.PgpSecret = req.Name
+			err = r.Update(ctx, att)
+			if err != nil {
+				log.Error(err, "Could not update attester's secret field")
+				return ctrl.Result{}, err
+			}
+
+			// Update the status to true
+			err = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue)
+			if err != nil {
+				log.Error(err, "Unable to update Attester status")
+			}
+
+			log.Info("Created the signer secret")
 		}
 	} else {
-		signer, err = attester.NewSigner(req.Name)
+		// The secret does exist
+		// Get the secret, then recreate the signer via the secret data
+		err := r.Get(ctx, req.NamespacedName, signerSecret)
 		if err != nil {
-			log.Error(err, "Unable to create signer")
+			log.Error(err, "Could not get secret")
 			return ctrl.Result{}, err
 		}
-		log.Info("Created the signer successfully")
 
-		publicKey := signer.KeyID()
+		buf := bytes.NewBuffer(signerSecret.Data["keys"])
 
-		var out io.Writer
-
-		err := signer.Serialize(out)
-
-		var privateKey string
-
-		_, err = io.WriteString(out, privateKey)
-
-		signerSecret = &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Namespace: req.Namespace,
-				Name:      req.Name,
-			},
-			Data: map[string][]byte{"publicKey": []byte(publicKey), "privateKey": []byte(privateKey)},
-		}
-		err = r.Create(ctx, signerSecret)
+		signer, err = attester.ReadSigner(buf)
 		if err != nil {
-			log.Error(err, "Unable to create signer Secret")
+			log.Error(err, "Unable to create signer from secret")
 			return ctrl.Result{}, err
+		}
+
+	}
+
+	// Create the attester if it doesn't already exist, otherwise update it
+	r.Attesters[req.NamespacedName.String()] = attester.NewAttester(req.NamespacedName.String(), policy, signer)
+
+	return ctrl.Result{}, nil
+}
+
+func (r *AttesterReconciler) registerFinalizer(logger logr.Logger, attester *rodev1alpha1.Attester) error {
+	// If the attester isn't being deleted and it doesn't contain a finalizer, then add one
+	if attester.ObjectMeta.DeletionTimestamp.IsZero() && !containsFinalizer(attester.ObjectMeta.Finalizers, attesterFinalizerName) {
+		logger.Info("Creating attester finalizer...")
+		attester.ObjectMeta.Finalizers = append(attester.ObjectMeta.Finalizers, attesterFinalizerName)
+
+		if err := r.Update(context.Background(), attester); err != nil {
+			return err
 		}
 	}
 
-	// TODO: update secret with signer material.
+	return nil
+}
 
-	r.Attesters = append(r.Attesters, attester.NewAttester(req.Name, policy, signer))
+func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1alpha1.Attester, conditionType rodev1alpha1.ConditionType, status rodev1alpha1.ConditionStatus) error {
+	if conditionType == rodev1alpha1.ConditionCompiled {
+		attester.Status.Conditions[0].Status = status
+	}
 
-	return ctrl.Result{}, nil
+	if conditionType == rodev1alpha1.ConditionSecret {
+		attester.Status.Conditions[1].Status = status
+	}
+
+	if err := r.Status().Update(ctx, attester); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {

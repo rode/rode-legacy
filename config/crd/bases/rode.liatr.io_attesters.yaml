@@ -8,6 +8,17 @@ metadata:
   creationTimestamp: null
   name: attesters.rode.liatr.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.conditions[?(@.type=="CompiledPolicy")].message
+    name: Status
+    priority: 1
+    type: string
+  - JSONPath: .status.conditions[?(@.type=="CompiledPolicy")].status
+    name: Ready
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    name: Age
+    type: date
   group: rode.liatr.io
   names:
     kind: Attester
@@ -50,16 +61,23 @@ spec:
         status:
           description: AttesterStatus defines the observed state of Attester
           properties:
-            compiledPolicy:
-              description: CompiledPolicy defines whether or not the policy compiled
-                correctly
-              type: string
-            validAttester:
-              description: ValidAttester defines whether or not the attester is valid
-              type: boolean
-          required:
-          - compiledPolicy
-          - validAttester
+            conditions:
+              items:
+                properties:
+                  lastTransitionTime:
+                    format: date-time
+                    type: string
+                  message:
+                    type: string
+                  status:
+                    type: string
+                  type:
+                    type: string
+                required:
+                - status
+                - type
+                type: object
+              type: array
           type: object
       type: object
   version: v1alpha1
