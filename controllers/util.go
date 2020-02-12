@@ -53,7 +53,7 @@ func ignoreDelete() predicate.Predicate {
 	}
 }
 
-type conditionerConverter func(o runtime.Object) rodev1alpha1.Conditioner
+type conditionerConverter func(o runtime.Object) util.Conditioner
 
 func ignoreConditionStatusUpdateToActive(cc conditionerConverter, ct rodev1alpha1.ConditionType) predicate.Predicate {
 	return predicate.Funcs{

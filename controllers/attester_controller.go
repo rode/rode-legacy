@@ -26,6 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/liatrio/rode/api/util"
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/pkg/attester"
 )
@@ -241,6 +242,6 @@ func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func attesterToConditioner(o runtime.Object) rodev1alpha1.Conditioner {
+func attesterToConditioner(o runtime.Object) util.Conditioner {
 	return o.(*rodev1alpha1.Attester)
 }

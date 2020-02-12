@@ -32,7 +32,7 @@ func SetCollectorCondition(col *rodev1alpha1.Collector, conditionType rodev1alph
 	col.Status.Conditions = append(col.Status.Conditions, condition)
 }
 
-func GetConditionStatus(con rodev1alpha1.Conditioner, conditionType rodev1alpha1.ConditionType) rodev1alpha1.ConditionStatus {
+func GetConditionStatus(con Conditioner, conditionType rodev1alpha1.ConditionType) rodev1alpha1.ConditionStatus {
 	for _, cond := range con.GetConditions() {
 		if cond.Type == conditionType {
 			return cond.Status
@@ -40,4 +40,8 @@ func GetConditionStatus(con rodev1alpha1.Conditioner, conditionType rodev1alpha1
 	}
 
 	return rodev1alpha1.ConditionStatusUnknown
+}
+
+type Conditioner interface {
+	GetConditions() []rodev1alpha1.Condition
 }

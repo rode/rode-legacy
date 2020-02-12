@@ -24,7 +24,3 @@ const (
 	ConditionCompiled ConditionType = "CompiledPolicy"
 	ConditionSecret   ConditionType = "CreatedSecret"
 )
-
-type Conditioner interface {
-	GetConditions() []Condition
-}

@@ -182,7 +182,7 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rodev1alpha1.Collector{}).
-		WithEventFilter(ignoreConditionStatusUpdateToActive(func(o runtime.Object) rodev1alpha1.Conditioner {
+		WithEventFilter(ignoreConditionStatusUpdateToActive(func(o runtime.Object) util.Conditioner {
 			return o.(*rodev1alpha1.Collector)
 		}, rodev1alpha1.ConditionActive)).
 		WithEventFilter(ignoreFinalizerUpdate()).
