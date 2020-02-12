@@ -120,7 +120,6 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
-		//att.Status.Conditions[0].Status = rodev1.ConditionStatusFalse
 
 		err = r.updateStatus(ctx, att, rodev1.ConditionCompiled, rodev1.ConditionStatusFalse)
 		if err != nil {
@@ -130,10 +129,10 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-    err = r.updateStatus(ctx, att, rodev1.ConditionCompiled, rodev1.ConditionStatusTrue)
-    if err != nil {
-        log.Error(err, "Unable to update Attester status")
-    }
+	err = r.updateStatus(ctx, att, rodev1.ConditionCompiled, rodev1.ConditionStatusTrue)
+	if err != nil {
+		log.Error(err, "Unable to update Attester status")
+	}
 
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
@@ -157,9 +156,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				log.Error(err, "Failed to create the signer secret")
 
 				err = r.updateStatus(ctx, att, rodev1.ConditionSecret, rodev1.ConditionStatusFalse)
-                if err != nil {
-                    log.Error(err, "Unable to update Attester status")
-                }
+				if err != nil {
+					log.Error(err, "Unable to update Attester status")
+				}
 				return ctrl.Result{}, err
 			}
 
@@ -173,9 +172,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 			// Update the status to true
 			err = r.updateStatus(ctx, att, rodev1.ConditionSecret, rodev1.ConditionStatusTrue)
-            if err != nil {
-                log.Error(err, "Unable to update Attester status")
-            }
+			if err != nil {
+				log.Error(err, "Unable to update Attester status")
+			}
 
 			log.Info("Created the signer secret")
 		}

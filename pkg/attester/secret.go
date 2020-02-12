@@ -42,7 +42,6 @@ func NewSecret(ctx context.Context, client client.Client, namespacedName types.N
 		},
 		Data: map[string][]byte{"keys": signerData},
 	}
-	// TODO OwnerReferences implement!!!
 
 	err = client.Create(ctx, signerSecret)
 	if err != nil {
