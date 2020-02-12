@@ -196,7 +196,7 @@ func createCollector(ctx context.Context, collector *rodev1alpha1.Collector) {
 		}
 
 		for _, cond := range col.Status.Conditions {
-			if cond.Type == rodev1alpha1.CollectorConditionActive {
+			if cond.Type == rodev1alpha1.ConditionActive {
 				return cond.Status
 			}
 		}

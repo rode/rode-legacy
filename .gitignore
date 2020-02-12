@@ -1,3 +1,7 @@
+cover.out
+manager
+
 *.tgz
 .DS_Store
 bin/
+.idea/
