@@ -17,11 +17,11 @@ test: generate fmt vet manifests
 
 # Install CRDs into a cluster
 install: manifests
-	kubectl apply -f helm-chart/rode/crds/rode.yaml
+	cat helm-chart/rode/crds/*.yaml | kubectl apply -f -
 
 # Uninstall CRDs from a cluster
 uninstall: manifests
-	kubectl delete -f helm-chart/rode/crds/rode.yaml
+	cat helm-chart/rode/crds/*.yaml | kubectl delete -f -
 
 # Generate manifests e.g. CRD, RBAC etc.
 manifests: controller-gen
