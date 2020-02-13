@@ -15,6 +15,8 @@ endif
 test: generate fmt vet manifests
 	go test ./... -coverprofile cover.out
 
+
+# HACK to install CRDs, until we get to HELM 3
 # Install CRDs into a cluster
 install: manifests
 	cat helm-chart/rode/crds/*.yaml | kubectl apply -f -

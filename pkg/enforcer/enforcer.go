@@ -3,8 +3,9 @@ package enforcer
 import (
 	"context"
 	"fmt"
-	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"net/http"
+
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	"github.com/go-logr/logr"
@@ -18,6 +19,8 @@ import (
 )
 
 // +kubebuilder:webhook:path=/validate-v1-pod,mutating=false,failurePolicy=fail,groups="",resources=pods,verbs=create;update,versions=v1,name=vpod.rode.liatr.io
+// +kubebuilder:rbac:groups=rode.liatr.io,resources=enforcers,verbs=get;list;watch
+// +kubebuilder:rbac:groups=rode.liatr.io,resources=clusterenforcers,verbs=get;list;watch
 
 // Enforcer enforces attestations on a resource
 type Enforcer interface {
