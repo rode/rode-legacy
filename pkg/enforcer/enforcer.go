@@ -78,6 +78,28 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 		}
 	}
 
+	clusterEnforcers := &rodev1alpha1.ClusterEnforcerList{}
+	err = e.client.List(ctx, clusterEnforcers)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	for _, clusterEnforcer := range clusterEnforcers.Items {
+		if clusterEnforcer.EnforcesNamespace(pod.Namespace) {
+			for _, clusterEnforcerAttester := range clusterEnforcer.Spec.Attesters {
+				a, attesterExists := attesters[clusterEnforcerAttester.String()]
+				if !attesterExists {
+					return admission.Denied(fmt.Sprintf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String()))
+				}
+
+				_, enforcerAttesterExists := enforcerAttesters[clusterEnforcerAttester.String()]
+				if !enforcerAttesterExists {
+					enforcerAttesters[clusterEnforcerAttester.String()] = a
+				}
+			}
+		}
+	}
+
 	for _, container := range pod.Spec.Containers {
 		occurrenceList, err := e.occurrenceLister.ListOccurrences(ctx, container.Image) // probably have to convert to sha256 here
 		if err != nil {
