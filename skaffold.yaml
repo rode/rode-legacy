@@ -33,6 +33,9 @@ profiles:
     - op: add
       path: /deploy/helm/releases/0/overrides
       value:
+        service:
+          type: NodePort
+          nodePort: 31443
         grafeas:
           storageType: "memstore"
           service:
