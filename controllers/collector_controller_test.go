@@ -1,9 +1,13 @@
+// +build !unit
+
 package controllers
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
@@ -17,7 +21,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
-	"time"
 )
 
 var (
@@ -97,15 +100,15 @@ var _ = Context("collector controller", func() {
 
 			// fetch queue ARN to assert against target
 
-			queueUrlReq, queueUrlResp := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
+			queueURLReq, queueURLResp := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
 				QueueName: aws.String(ecrCollectorQueueName),
 			})
 
-			err = queueUrlReq.Send()
+			err = queueURLReq.Send()
 			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue", err)
 
 			queueAttributesReq, queueAttributesResp := sqsSvc.GetQueueAttributesRequest(&sqs.GetQueueAttributesInput{
-				QueueUrl: queueUrlResp.QueueUrl,
+				QueueUrl: queueURLResp.QueueUrl,
 				AttributeNames: []*string{
 					aws.String("QueueArn"),
 				},
@@ -128,23 +131,23 @@ var _ = Context("collector controller", func() {
 			err := cwRequest.Send()
 			Expect(err).To(HaveOccurred(), "expected get operation for CW events rules to fail")
 
-			queueUrlReq, _ := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
+			queueURLReq, _ := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
 				QueueName: aws.String(ecrCollectorQueueName),
 			})
 
-			err = queueUrlReq.Send()
+			err = queueURLReq.Send()
 			Expect(err).To(HaveOccurred(), "expected get operation for SQS queue to fail")
 		})
 
 		It("should create an occurrence for ECR image scans", func() {
-			queueUrlReq, queueUrlResp := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
+			queueURLReq, queueURLResp := sqsSvc.GetQueueUrlRequest(&sqs.GetQueueUrlInput{
 				QueueName: aws.String(ecrCollectorQueueName),
 			})
 
-			err := queueUrlReq.Send()
+			err := queueURLReq.Send()
 			Expect(err).ToNot(HaveOccurred(), "failed to get SQS queue", err)
 
-			queueUrl := queueUrlResp.QueueUrl
+			queueURL := queueURLResp.QueueUrl
 
 			ecrImageScanDetail := createTestECRImageScanDetail(awsAccountNumber, *awsConfig.Region, "springtrader", "COMPLETE")
 			ecrImageScanEvent := createTestECRImageScanEvent(awsAccountNumber, *awsConfig.Region, "springtrader", ecrImageScanDetail)
@@ -156,7 +159,7 @@ var _ = Context("collector controller", func() {
 			sqsMessageBody := string(ecrImageScanEventBody)
 			sendMessageReq, _ := sqsSvc.SendMessageRequest(&sqs.SendMessageInput{
 				MessageBody: &sqsMessageBody,
-				QueueUrl:    queueUrl,
+				QueueUrl:    queueURL,
 			})
 
 			err = sendMessageReq.Send()
@@ -225,11 +228,7 @@ func destroyCollector(ctx context.Context, name, namespace string) {
 			Namespace: namespace,
 		}, &col)
 
-		if err == nil {
-			return false
-		}
-
-		return true
+		return err != nil
 	}, checkDuration, checkInterval).Should(BeTrue())
 }
 
@@ -253,11 +252,11 @@ func getOccurrencesForQueue(ctx context.Context, queueName string) []*grafeas.Oc
 
 func createTestECRImageScanDetail(account, region, repository, status string) *collector.ECRImageScanDetail {
 	severities := []string{
-		collector.ECR_Severity_CRITICAL,
-		collector.ECR_Severity_HIGH,
-		collector.ECR_Severity_MEDIUM,
-		collector.ECR_Severity_LOW,
-		collector.ECR_Severity_INFORMATIONAL,
+		collector.ECRSeverityCritical,
+		collector.ECRSeverityHigh,
+		collector.ECRSeverityMedium,
+		collector.ECRSeverityLow,
+		collector.ECRSeverityInformational,
 	}
 	randomSeverities := test.RandomStringSliceSubset(severities)
 
@@ -276,7 +275,7 @@ func createTestECRImageScanDetail(account, region, repository, status string) *c
 }
 
 func createTestECRImageScanEvent(account, region, repository string, detail *collector.ECRImageScanDetail) *collector.CloudWatchEvent {
-	ecrImageScanDetailJson, _ := json.Marshal(detail)
+	ecrImageScanDetailJSON, _ := json.Marshal(detail)
 
 	return &collector.CloudWatchEvent{
 		Version:    "0",
@@ -289,6 +288,6 @@ func createTestECRImageScanEvent(account, region, repository string, detail *col
 		Resources: []string{
 			fmt.Sprintf("arn:aws:ecr:%s:%s:repository/%s", region, account, repository),
 		},
-		Detail: ecrImageScanDetailJson,
+		Detail: ecrImageScanDetailJSON,
 	}
 }

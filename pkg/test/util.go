@@ -3,9 +3,10 @@ package test
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	krand "k8s.io/apimachinery/pkg/util/rand"
 	"math/rand"
 	"time"
+
+	krand "k8s.io/apimachinery/pkg/util/rand"
 )
 
 func init() {
@@ -54,7 +55,7 @@ func CreateTestSha256(args ...string) string {
 	hash := sha256.New()
 
 	for _, s := range args {
-		hash.Write([]byte(s))
+		_, _ = hash.Write([]byte(s))
 	}
 
 	return hex.EncodeToString(hash.Sum(nil))

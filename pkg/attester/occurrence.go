@@ -38,7 +38,7 @@ func NewAttestWrapper(log logr.Logger, delegate occurrence.Creator, lister occur
 
 // CreateOccurrences will attempt attestation
 func (a *attestWrapper) CreateOccurrences(ctx context.Context, occurrences ...*grafeas.Occurrence) error {
-	if occurrences == nil || len(occurrences) == 0 {
+	if len(occurrences) == 0 {
 		return nil
 	}
 	// call the delegate

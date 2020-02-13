@@ -6,3 +6,4 @@ config/
 .DS_Store
 bin/
 .idea/
+vendor/
