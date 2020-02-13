@@ -15,3 +15,5 @@ jobs:
         fetch-depth: 0
     - run: git fetch origin +refs/tags/*:refs/tags/*
     - uses: ./.github/workflows/publish
+      with:
+        GITHUB_TOKEN: ${{github.token}}
