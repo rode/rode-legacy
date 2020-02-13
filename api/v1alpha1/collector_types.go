@@ -25,13 +25,21 @@ type CollectorECRConfig struct {
 	QueueName string `json:"queueName,omitempty"`
 }
 
+// CollectorHarborConfig defines configuration for Harbor type collectors.
+type CollectorHarborConfig struct {
+	HarborURL string `json:"harborUrl,omitempty"`
+	Project   string `json:"project,omitempty"`
+	Secret    string `json:"secret,omitempty"`
+}
+
 // CollectorSpec defines the desired state of Collector
 type CollectorSpec struct {
 	// Type defines the type of collector that this is. Supported values are ecr_event, test
 	CollectorType string `json:"type"`
 	// Defines configuration for collectors of the ecr_event type.
 	// +optional
-	ECR CollectorECRConfig `json:"ecr,omitempty"`
+	ECR    CollectorECRConfig    `json:"ecr,omitempty"`
+	Harbor CollectorHarborConfig `json:"harbor,omitempty"`
 }
 
 // CollectorStatus defines the observed state of Collector

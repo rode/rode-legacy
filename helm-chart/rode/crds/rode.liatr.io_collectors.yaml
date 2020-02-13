@@ -54,6 +54,17 @@ spec:
                     from.
                   type: string
               type: object
+            harbor:
+              description: CollectorHarborConfig defines configuration for Harbor
+                type collectors.
+              properties:
+                harborUrl:
+                  type: string
+                project:
+                  type: string
+                secret:
+                  type: string
+              type: object
             type:
               description: Type defines the type of collector that this is. Supported
                 values are ecr_event, test

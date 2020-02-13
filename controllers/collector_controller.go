@@ -82,6 +82,8 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		switch col.Spec.CollectorType {
 		case "ecr_event":
 			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
+		case "harbor_event":
+			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL)
 		case "test":
 			c = collector.NewTestCollector(r.Log, "foo")
 		default:
