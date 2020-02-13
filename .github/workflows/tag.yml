@@ -11,10 +11,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Log in to registry
-      uses: actions/docker/login@master
-      env:
-        DOCKER_REGISTRY_URL: docker.pkg.github.com
-        DOCKER_USERNAME: ${{ github.actor }}
-        DOCKER_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
     - uses: ./.github/workflows/publish
