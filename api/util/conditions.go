@@ -1,13 +1,13 @@
 package util
 
 import (
-	rodev1 "github.com/liatrio/rode/api/v1alpha1"
+	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/clock"
 )
 
-func SetCollectorCondition(col *rodev1.Collector, conditionType rodev1.ConditionType, status rodev1.ConditionStatus, message string) {
-	condition := rodev1.Condition{
+func SetCollectorCondition(col *rodev1alpha1.Collector, conditionType rodev1alpha1.ConditionType, status rodev1alpha1.ConditionStatus, message string) {
+	condition := rodev1alpha1.Condition{
 		Type:    conditionType,
 		Status:  status,
 		Message: message,
@@ -30,4 +30,18 @@ func SetCollectorCondition(col *rodev1.Collector, conditionType rodev1.Condition
 	}
 
 	col.Status.Conditions = append(col.Status.Conditions, condition)
+}
+
+func GetConditionStatus(con Conditioner, conditionType rodev1alpha1.ConditionType) rodev1alpha1.ConditionStatus {
+	for _, cond := range con.GetConditions() {
+		if cond.Type == conditionType {
+			return cond.Status
+		}
+	}
+
+	return rodev1alpha1.ConditionStatusUnknown
+}
+
+type Conditioner interface {
+	GetConditions() []rodev1alpha1.Condition
 }

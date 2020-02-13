@@ -19,11 +19,12 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
-	"github.com/go-logr/logr"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strings"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"github.com/go-logr/logr"
 
 	"github.com/liatrio/rode/pkg/enforcer"
 
@@ -118,13 +119,9 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Collector")
 		os.Exit(1)
 	}
-
 	// +kubebuilder:scaffold:builder
 
-	excludeNS := strings.Split(os.Getenv("EXCLUDED_NAMESPACES"), ",")
-	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), excludeNS, attesters, grafeasClient, mgr.GetClient())
-
-	// TODO: add webhook route
+	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), attesters, grafeasClient, mgr.GetClient())
 
 	checker := func(req *http.Request) error {
 		return nil
@@ -132,11 +129,7 @@ func main() {
 
 	mgr.AddHealthzCheck("test", checker)
 	mgr.AddReadyzCheck("test", checker)
-	mgr.GetWebhookServer().Register("/validate", enforcer)
-
-	// TODO: add occurrences route
-
-	// TODO: setup TLS for endpoints
+	mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {

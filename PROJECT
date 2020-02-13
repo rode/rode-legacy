@@ -7,4 +7,10 @@ resources:
 - group: rode
   kind: Attester
   version: v1alpha1
+- group: rode
+  kind: Enforcer
+  version: v1alpha1
+- group: rode
+  kind: ClusterEnforcer
+  version: v1alpha1
 version: "2"

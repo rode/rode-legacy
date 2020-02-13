@@ -41,6 +41,7 @@ type CollectorStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.type",description=""
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Active\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 
@@ -64,4 +65,8 @@ type CollectorList struct {
 
 func init() {
 	SchemeBuilder.Register(&Collector{}, &CollectorList{})
+}
+
+func (c *Collector) GetConditions() []Condition {
+	return c.Status.Conditions
 }

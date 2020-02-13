@@ -39,9 +39,7 @@ func NewAWSConfig(log logr.Logger) *aws.Config {
 	session := session.Must(session.NewSession(cfg))
 	svc := sts.New(session)
 	result, err := svc.GetCallerIdentity(nil)
-	if err != nil {
-		log.Error(err, "Error getting caller identity")
-	} else {
+	if err == nil {
 		log.Info("Finished AWS Identity", "result", result)
 	}
 

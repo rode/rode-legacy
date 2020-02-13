@@ -4,7 +4,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   creationTimestamp: null
-  name: manager-role
+  name: rode-manager-role
 rules:
 - apiGroups:
   - rode.liatr.io
@@ -29,6 +29,14 @@ rules:
 - apiGroups:
   - rode.liatr.io
   resources:
+  - clusterenforcers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - rode.liatr.io
+  resources:
   - collectors
   verbs:
   - create
@@ -46,3 +54,11 @@ rules:
   - get
   - patch
   - update
+- apiGroups:
+  - rode.liatr.io
+  resources:
+  - enforcers
+  verbs:
+  - get
+  - list
+  - watch

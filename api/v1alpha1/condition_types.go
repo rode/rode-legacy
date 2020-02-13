@@ -5,8 +5,9 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 type ConditionStatus string
 
 const (
-	ConditionStatusTrue  ConditionStatus = "True"
-	ConditionStatusFalse ConditionStatus = "False"
+	ConditionStatusUnknown ConditionStatus = "Unknown"
+	ConditionStatusTrue    ConditionStatus = "True"
+	ConditionStatusFalse   ConditionStatus = "False"
 )
 
 type Condition struct {
@@ -20,6 +21,6 @@ type ConditionType string
 
 const (
 	ConditionActive   ConditionType = "Active"
-	ConditionCompiled ConditionType = "CompiledPolicy"
-	ConditionSecret   ConditionType = "CreatedSecret"
+	ConditionCompiled ConditionType = "Policy"
+	ConditionSecret   ConditionType = "Key"
 )

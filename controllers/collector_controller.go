@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-logr/logr"
 	"github.com/liatrio/rode/api/util"
@@ -64,7 +65,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	err := r.Get(ctx, req.NamespacedName, col)
 	if err != nil {
 		log.Error(err, "Unable to load collector")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return ctrl.Result{}, err
 	}
 
 	err = r.registerFinalizer(log, col)
@@ -159,14 +160,10 @@ func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector 
 	util.SetCollectorCondition(collector, rodev1alpha1.ConditionActive, conditionStatus, conditionMessage)
 	err := r.Status().Update(ctx, collector)
 	if err != nil {
-		if ctrlError != nil {
-			return ctrl.Result{}, errors.Wrap(ctrlError, err.Error())
-		}
-
-		return ctrl.Result{}, err
+		return ctrl.Result{}, errors.Wrap(err, "Unable to update collector status")
 	}
 
-	return ctrl.Result{}, ctrlError
+	return ctrl.Result{}, errors.Wrap(ctrlError, "Setting controller to errored status")
 }
 
 func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *rodev1alpha1.Collector) error {
@@ -185,5 +182,10 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rodev1alpha1.Collector{}).
+		WithEventFilter(ignoreConditionStatusUpdateToActive(func(o runtime.Object) util.Conditioner {
+			return o.(*rodev1alpha1.Collector)
+		}, rodev1alpha1.ConditionActive)).
+		WithEventFilter(ignoreFinalizerUpdate()).
+		WithEventFilter(ignoreDelete()).
 		Complete(r)
 }

@@ -23,8 +23,8 @@ import (
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // +k8s:openapi-gen=true
-// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"CompiledPolicy\")].message",priority=1
-// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"CompiledPolicy\")].status",description=""
+// +kubebuilder:printcolumn:name="Policy",type="string",JSONPath=".status.conditions[?(@.type==\"Policy\")].status",description=""
+// +kubebuilder:printcolumn:name="Key",type="string",JSONPath=".status.conditions[?(@.type==\"Key\")].status",description=""
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description=""
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
@@ -70,4 +70,8 @@ type AttesterStatus struct {
 
 func init() {
 	SchemeBuilder.Register(&Attester{}, &AttesterList{})
+}
+
+func (a *Attester) GetConditions() []Condition {
+	return a.Status.Conditions
 }

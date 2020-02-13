@@ -84,6 +84,10 @@ helm repo add liatrio https://...
 helm upgrade -i rode rode
 ```
 
+Setup collectors, attesters and enforcers through a quickstart:
+
+`kubectl apply -f examples/aws-quickstart.yaml`
+
 The ECR event collector requires the following IAM policy:
 
 ```
@@ -123,6 +127,9 @@ To run controllers:
 `skaffold dev --port-forward`
 
 This will also run [localstack](https://github.com/localstack/localstack) to mock services such as SQS.
+
+Setup collectors, attesters and enforcers:
+`kubectl apply -f examples/aws-quickstart.yaml`
 
 To create an occurence, use the aws cli to send a test message to localstack:
 

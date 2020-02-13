@@ -6,27 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.2.4
   creationTimestamp: null
-  name: collectors.rode.liatr.io
+  name: enforcers.rode.liatr.io
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .status.conditions[?(@.type=="Active")].status
-    name: Ready
-    type: string
-  - JSONPath: .metadata.creationTimestamp
-    name: Age
-    type: date
   group: rode.liatr.io
   names:
-    kind: Collector
-    listKind: CollectorList
-    plural: collectors
-    singular: collector
+    kind: Enforcer
+    listKind: EnforcerList
+    plural: enforcers
+    singular: enforcer
   scope: Namespaced
   subresources:
     status: {}
   validation:
     openAPIV3Schema:
-      description: Collector is the Schema for the collectors API
+      description: Enforcer is the Schema for the enforcers API
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
@@ -41,43 +34,27 @@ spec:
         metadata:
           type: object
         spec:
-          description: CollectorSpec defines the desired state of Collector
+          description: EnforcerSpec defines the desired state of Enforcer
           properties:
-            ecr:
-              description: Defines configuration for collectors of the ecr_event type.
-              properties:
-                queueName:
-                  description: Denotes the name of the AWS SQS queue to collect events
-                    from.
-                  type: string
-              type: object
-            type:
-              description: Type defines the type of collector that this is. Supported
-                values are ecr_event, test
-              type: string
-          required:
-          - type
-          type: object
-        status:
-          description: CollectorStatus defines the observed state of Collector
-          properties:
-            conditions:
+            attesters:
+              description: Foo is an example field of Enforcer. Edit Enforcer_types.go
+                to remove/update
               items:
                 properties:
-                  lastTransitionTime:
-                    format: date-time
+                  name:
                     type: string
-                  message:
-                    type: string
-                  status:
-                    type: string
-                  type:
+                  namespace:
                     type: string
                 required:
-                - status
-                - type
+                - name
+                - namespace
                 type: object
               type: array
+          required:
+          - attesters
+          type: object
+        status:
+          description: EnforcerStatus defines the observed state of Enforcer
           type: object
       type: object
   version: v1alpha1

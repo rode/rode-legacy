@@ -9,12 +9,11 @@ metadata:
   name: attesters.rode.liatr.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .status.conditions[?(@.type=="CompiledPolicy")].message
-    name: Status
-    priority: 1
+  - JSONPath: .status.conditions[?(@.type=="Policy")].status
+    name: Policy
     type: string
-  - JSONPath: .status.conditions[?(@.type=="CompiledPolicy")].status
-    name: Ready
+  - JSONPath: .status.conditions[?(@.type=="Key")].status
+    name: Key
     type: string
   - JSONPath: .metadata.creationTimestamp
     name: Age

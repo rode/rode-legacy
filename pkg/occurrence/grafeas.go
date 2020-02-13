@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+
 	"github.com/go-logr/logr"
 
 	"google.golang.org/grpc/codes"
@@ -15,9 +16,11 @@ import (
 )
 
 type grafeasClient struct {
-	log       logr.Logger
-	client    grafeas.GrafeasV1Beta1Client
-	projectID string
+	log                logr.Logger
+	client             grafeas.GrafeasV1Beta1Client
+	projectClient      project.ProjectsClient
+	projectID          string
+	projectInitialized bool
 }
 
 // GrafeasClient handle into grafeas
@@ -38,16 +41,13 @@ func NewGrafeasClient(log logr.Logger, tlsConfig *tls.Config, endpoint string) (
 	}
 
 	client := grafeas.NewGrafeasV1Beta1Client(conn)
+	projectClient := project.NewProjectsClient(conn)
 	c := &grafeasClient{
 		log,
 		client,
+		projectClient,
 		"projects/rode",
-	}
-
-	projectClient := project.NewProjectsClient(conn)
-	err = c.initProject(context.Background(), projectClient)
-	if err != nil {
-		return nil, err
+		false,
 	}
 
 	return c, nil
@@ -85,25 +85,36 @@ func (c *grafeasClient) CreateOccurrences(ctx context.Context, occurrences ...*g
 	if occurrences == nil || len(occurrences) == 0 {
 		return nil
 	}
-	_, err := c.client.BatchCreateOccurrences(ctx, &grafeas.BatchCreateOccurrencesRequest{
+
+	err := c.initProject(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = c.client.BatchCreateOccurrences(ctx, &grafeas.BatchCreateOccurrencesRequest{
 		Occurrences: occurrences,
 		Parent:      c.projectID,
 	})
 	return err
 }
 
-func (c *grafeasClient) initProject(ctx context.Context, projectClient project.ProjectsClient) error {
+func (c *grafeasClient) initProject(ctx context.Context) error {
+	if c.projectInitialized {
+		return nil
+	}
+
 	c.log.Info("Fetching project", "projectID", c.projectID)
-	_, err := projectClient.GetProject(ctx, &project.GetProjectRequest{
+	_, err := c.projectClient.GetProject(ctx, &project.GetProjectRequest{
 		Name: c.projectID,
 	})
 	if err != nil && grpc.Code(err) == codes.NotFound {
 		c.log.Info("Creating project", "ProjectID", c.projectID)
-		_, err = projectClient.CreateProject(ctx, &project.CreateProjectRequest{
+		_, err = c.projectClient.CreateProject(ctx, &project.CreateProjectRequest{
 			Project: &project.Project{
 				Name: c.projectID,
 			},
 		})
 	}
+	c.projectInitialized = (err == nil)
 	return err
 }

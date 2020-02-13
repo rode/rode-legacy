@@ -18,6 +18,7 @@ package controllers
 import (
 	"bytes"
 	"context"
+
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -25,6 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
+	"github.com/liatrio/rode/api/util"
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/pkg/attester"
 )
@@ -233,5 +235,13 @@ func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1a
 func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rodev1alpha1.Attester{}).
+		WithEventFilter(ignoreConditionStatusUpdateToActive(attesterToConditioner, rodev1alpha1.ConditionCompiled)).
+		WithEventFilter(ignoreConditionStatusUpdateToActive(attesterToConditioner, rodev1alpha1.ConditionSecret)).
+		WithEventFilter(ignoreFinalizerUpdate()).
+		WithEventFilter(ignoreDelete()).
 		Complete(r)
+}
+
+func attesterToConditioner(o runtime.Object) util.Conditioner {
+	return o.(*rodev1alpha1.Attester)
 }
