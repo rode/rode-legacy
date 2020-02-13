@@ -9,6 +9,9 @@ metadata:
   name: collectors.rode.liatr.io
 spec:
   additionalPrinterColumns:
+  - JSONPath: .spec.type
+    name: Type
+    type: string
   - JSONPath: .status.conditions[?(@.type=="Active")].status
     name: Ready
     type: string

@@ -21,6 +21,6 @@ type ConditionType string
 
 const (
 	ConditionActive   ConditionType = "Active"
-	ConditionCompiled ConditionType = "CompiledPolicy"
-	ConditionSecret   ConditionType = "CreatedSecret"
+	ConditionCompiled ConditionType = "Policy"
+	ConditionSecret   ConditionType = "Key"
 )
