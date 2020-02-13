@@ -1,0 +1,7 @@
+apiVersion: rode.liatr.io/v1alpha1
+kind: ClusterEnforcer
+metadata:
+  name: clusterenforcer-sample
+spec:
+  # Add fields here
+  foo: bar
