@@ -1,5 +1,6 @@
 cover.out
 manager
+config/
 
 *.tgz
 .DS_Store
