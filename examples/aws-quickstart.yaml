@@ -1,6 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rode
+---
 apiVersion: rode.liatr.io/v1alpha1
 kind: Collector
 metadata:
+  namespace: rode
   name: aws-ecr-event
 spec:
   type: ecr_event
@@ -10,6 +16,7 @@ spec:
 apiVersion: rode.liatr.io/v1alpha1
 kind: Attester
 metadata:
+  namespace: rode
   name: imagescan
 spec:
   policy: |
@@ -31,3 +38,15 @@ spec:
     severityCount(severity) = cnt {
         cnt := count([v | v := input.occurrences[_].vulnerability.severity; v == severity])
     }
+---
+apiVersion: rode.liatr.io/v1alpha1
+kind: ClusterEnforcer
+metadata:
+  name: default
+spec:
+  namespaces:
+  - default
+  matchStrategy: Include
+  attesters:
+  - namespace: rode
+    name: imagescan
