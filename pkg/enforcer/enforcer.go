@@ -47,31 +47,22 @@ func NewEnforcer(log logr.Logger, attesterLister attester.Lister, occurrenceList
 	}
 }
 
-func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.Response {
-	pod := &corev1.Pod{}
-	err := e.decoder.Decode(req, pod)
-	if err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
-	}
-
-	// get enforcers
-	enforcers := &rodev1alpha1.EnforcerList{}
-	err = e.client.List(ctx, enforcers, client.InNamespace(pod.Namespace))
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	e.log.Info("handling enforcement request", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name), "enforcers", enforcers)
-
+func (e *enforcer) AddEnforcerAttesters(ctx context.Context, enforcerAttesters map[string]attester.Attester, namespace string) error {
 	// get all attesters
 	attesters := e.attesterLister.ListAttesters()
 
-	enforcerAttesters := make(map[string]attester.Attester)
+	// get enforcers
+	enforcers := &rodev1alpha1.EnforcerList{}
+	err := e.client.List(ctx, enforcers, client.InNamespace(namespace))
+	if err != nil {
+		return err
+	}
+
 	for _, enforcer := range enforcers.Items {
 		for _, enforcerAttester := range enforcer.Spec.Attesters {
 			a, attesterExists := attesters[enforcerAttester.String()]
 			if !attesterExists {
-				return admission.Denied(fmt.Sprintf("enforcer %s/%s requires attester %s which does not exist", enforcer.Namespace, enforcer.Name, enforcerAttester.String()))
+				return fmt.Errorf("enforcer %s/%s requires attester %s which does not exist", enforcer.Namespace, enforcer.Name, enforcerAttester.String())
 			}
 
 			_, enforcerAttesterExists := enforcerAttesters[enforcerAttester.String()]
@@ -81,18 +72,25 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 		}
 	}
 
+	return nil
+}
+
+func (e *enforcer) AddClusterEnforcerAttesters(ctx context.Context, enforcerAttesters map[string]attester.Attester, namespace string) error {
+	// get all attesters
+	attesters := e.attesterLister.ListAttesters()
+
 	clusterEnforcers := &rodev1alpha1.ClusterEnforcerList{}
-	err = e.client.List(ctx, clusterEnforcers)
+	err := e.client.List(ctx, clusterEnforcers)
 	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
+		return err
 	}
 
 	for _, clusterEnforcer := range clusterEnforcers.Items {
-		if clusterEnforcer.EnforcesNamespace(pod.Namespace) {
+		if clusterEnforcer.EnforcesNamespace(namespace) {
 			for _, clusterEnforcerAttester := range clusterEnforcer.Spec.Attesters {
 				a, attesterExists := attesters[clusterEnforcerAttester.String()]
 				if !attesterExists {
-					return admission.Denied(fmt.Sprintf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String()))
+					return fmt.Errorf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String())
 				}
 
 				_, enforcerAttesterExists := enforcerAttesters[clusterEnforcerAttester.String()]
@@ -101,6 +99,29 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.Response {
+	pod := &corev1.Pod{}
+	err := e.decoder.Decode(req, pod)
+	if err != nil {
+		return admission.Errored(http.StatusBadRequest, err)
+	}
+
+	e.log.Info("handling enforcement request", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+
+	enforcerAttesters := make(map[string]attester.Attester)
+
+	err = e.AddEnforcerAttesters(ctx, enforcerAttesters, pod.Namespace)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
+	}
+
+	err = e.AddClusterEnforcerAttesters(ctx, enforcerAttesters, pod.Namespace)
+	if err != nil {
+		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
 	for _, container := range pod.Spec.Containers {

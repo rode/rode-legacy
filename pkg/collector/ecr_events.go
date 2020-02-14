@@ -20,8 +20,6 @@ import (
 	"github.com/liatrio/rode/pkg/occurrence"
 )
 
-const path = "/ecr-healthz"
-
 type ecrCollector struct {
 	logger       logr.Logger
 	awsConfig    *aws.Config
@@ -319,7 +317,7 @@ func (i *ecrCollector) watchQueue(ctx context.Context, svc *sqs.SQS, occurrenceC
 func newImageScanOccurrence(event *CloudWatchEvent, detail *ECRImageScanDetail, tag string, queueName string) *grafeas.Occurrence {
 	o := &grafeas.Occurrence{
 		Resource: &grafeas.Resource{
-			Uri: EcrOccurrenceResourceUri(event.AccountID, event.Region, detail.RepositoryName, tag, detail.ImageDigest),
+			Uri: EcrOccurrenceResourceURI(event.AccountID, event.Region, detail.RepositoryName, tag, detail.ImageDigest),
 		},
 		NoteName: EcrOccurrenceNote(queueName),
 	}
@@ -327,7 +325,7 @@ func newImageScanOccurrence(event *CloudWatchEvent, detail *ECRImageScanDetail, 
 	return o
 }
 
-func EcrOccurrenceResourceUri(account, region, repository, tag, digest string) string {
+func EcrOccurrenceResourceURI(account, region, repository, tag, digest string) string {
 	return fmt.Sprintf("%s.dkr.ecr.%s.amazonaws.com/%s:%s@%s", account, region, repository, tag, digest)
 }
 
@@ -337,7 +335,7 @@ func EcrOccurrenceNote(queueName string) string {
 
 func getVulnerabilityDetails(detail *ECRImageScanDetail) []*grafeas.Occurrence_Vulnerability {
 	// TODO: load from ecr scan results
-	vulnerabilityDetails := make([]*grafeas.Occurrence_Vulnerability, 0, 0)
+	vulnerabilityDetails := make([]*grafeas.Occurrence_Vulnerability, 0)
 
 	for k, v := range detail.FindingsSeverityCounts {
 		severity := getVulnerabilitySeverity(k)
@@ -369,15 +367,15 @@ func getVulnerabilityDetails(detail *ECRImageScanDetail) []*grafeas.Occurrence_V
 
 func getVulnerabilitySeverity(v string) vulnerability.Severity {
 	switch v {
-	case ECR_Severity_CRITICAL:
+	case ECRSeverityCritical:
 		return vulnerability.Severity_CRITICAL
-	case ECR_Severity_HIGH:
+	case ECRSeverityHigh:
 		return vulnerability.Severity_HIGH
-	case ECR_Severity_MEDIUM:
+	case ECRSeverityMedium:
 		return vulnerability.Severity_MEDIUM
-	case ECR_Severity_LOW:
+	case ECRSeverityLow:
 		return vulnerability.Severity_LOW
-	case ECR_Severity_INFORMATIONAL:
+	case ECRSeverityInformational:
 		return vulnerability.Severity_MINIMAL
 	default:
 		return vulnerability.Severity_SEVERITY_UNSPECIFIED
@@ -391,7 +389,7 @@ func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *E
 	}
 
 	status := discovery.Discovered_ANALYSIS_STATUS_UNSPECIFIED
-	vulnerabilityDetails := make([]*grafeas.Occurrence_Vulnerability, 0, 0)
+	vulnerabilityDetails := make([]*grafeas.Occurrence_Vulnerability, 0)
 
 	if detail.ScanStatus == "COMPLETE" {
 		status = discovery.Discovered_FINISHED_SUCCESS
@@ -408,7 +406,7 @@ func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *E
 		},
 	}
 
-	occurrences := make([]*grafeas.Occurrence, 0, 0)
+	occurrences := make([]*grafeas.Occurrence, 0)
 	for _, tag := range tags {
 		o := newImageScanOccurrence(event, detail, tag, i.queueName)
 		o.Details = discoveryDetails
@@ -422,9 +420,6 @@ func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *E
 	}
 
 	return occurrences
-}
-func newImageActionOccurrence(event *CloudWatchEvent, detail *ECRImageActionDetail) *grafeas.Occurrence {
-	return nil
 }
 func (i *ecrCollector) newImageActionOccurrences(event *CloudWatchEvent, detail *ECRImageActionDetail) []*grafeas.Occurrence {
 	return nil
@@ -487,9 +482,9 @@ type ECRImageScanDetail struct {
 type ECRImageScanSeverity string
 
 const (
-	ECR_Severity_CRITICAL      = "CRITICAL"
-	ECR_Severity_HIGH          = "HIGH"
-	ECR_Severity_MEDIUM        = "MEDIUM"
-	ECR_Severity_LOW           = "LOW"
-	ECR_Severity_INFORMATIONAL = "INFORMATIONAL"
+	ECRSeverityCritical      = "CRITICAL"
+	ECRSeverityHigh          = "HIGH"
+	ECRSeverityMedium        = "MEDIUM"
+	ECRSeverityLow           = "LOW"
+	ECRSeverityInformational = "INFORMATIONAL"
 )

@@ -18,7 +18,7 @@ func containsFinalizer(slice []string, str string) bool {
 }
 
 func removeFinalizer(slice []string, str string) []string {
-	var result []string
+	result := make([]string, 0)
 
 	for _, s := range slice {
 		if s == str {
@@ -36,11 +36,9 @@ func ignoreFinalizerUpdate() predicate.Predicate {
 		UpdateFunc: func(e event.UpdateEvent) bool {
 			oldObjectMeta := e.MetaOld
 			newObjectMeta := e.MetaNew
-			if containsFinalizer(oldObjectMeta.GetFinalizers(), collectorFinalizerName) != containsFinalizer(newObjectMeta.GetFinalizers(), collectorFinalizerName) {
-				// NO enqueue whenever a finalizer is added or removed
-				return false
-			}
-			return true
+
+			// NO enqueue whenever a finalizer is added or removed
+			return !containsFinalizer(oldObjectMeta.GetFinalizers(), collectorFinalizerName) != containsFinalizer(newObjectMeta.GetFinalizers(), collectorFinalizerName)
 		},
 	}
 }
