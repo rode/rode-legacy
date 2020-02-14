@@ -109,6 +109,8 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
 
+		e.log.Info("ListOccurrances", "occurrences", occurrenceList.Occurrences)
+
 		for _, enforcerAttester := range enforcerAttesters {
 			attested := false
 			for _, occ := range occurrenceList.GetOccurrences() {
