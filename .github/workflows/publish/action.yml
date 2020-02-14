@@ -1,8 +1,0 @@
-name: Publish
-description: Publish image and chart
-branding:
-  icon: upload-cloud
-  color: blue
-runs:
-  using: 'docker'
-  image: 'Dockerfile'
