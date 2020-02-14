@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -58,6 +59,7 @@ var (
 	k8sClient     client.Client
 	testEnv       *envtest.Environment
 	grafeasClient grafeas.GrafeasV1Beta1Client
+	httpClient    *http.Client
 )
 
 func TestAPIs(t *testing.T) {
@@ -69,6 +71,8 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
+	ctx := context.Background()
+
 	logf.SetLogger(zap.LoggerTo(GinkgoWriter, true))
 
 	By("bootstrapping test environment")
@@ -91,10 +95,13 @@ var _ = BeforeSuite(func() {
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).ToNot(HaveOccurred())
 
-	tlsConfig, err := testGrafeasTLSConfig(context.Background(), k8sClient)
+	tlsConfig, err := testGrafeasTLSConfig(ctx, k8sClient)
 	Expect(err).ToNot(HaveOccurred())
 
 	grafeasClient, err = testGrafeasClient(tlsConfig)
+	Expect(err).ToNot(HaveOccurred())
+
+	httpClient, err = testHTTPClient(ctx, k8sClient)
 	Expect(err).ToNot(HaveOccurred())
 }, 60)
 
@@ -149,10 +156,35 @@ func localstackAWSConfig() *aws.Config {
 	return cfg
 }
 
+func testHTTPClient(ctx context.Context, k8sClient client.Client) (*http.Client, error) {
+	rodeTLSSecret := corev1.Secret{}
+	err := k8sClient.Get(ctx, types.NamespacedName{
+		Namespace: "rode",
+		Name:      "rode-ssl-certs",
+	}, &rodeTLSSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, err
+	}
+	certPool.AppendCertsFromPEM(rodeTLSSecret.Data["ca.crt"])
+
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs: certPool,
+			},
+		},
+	}, nil
+}
+
 func testGrafeasTLSConfig(ctx context.Context, k8sClient client.Client) (*tls.Config, error) {
 	grafeasTLSSecret := corev1.Secret{}
 	err := k8sClient.Get(ctx, types.NamespacedName{
-		Namespace: "default",
+		Namespace: "rode",
 		Name:      "grafeas-ssl-certs",
 	}, &grafeasTLSSecret)
 	if err != nil {
