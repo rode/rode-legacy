@@ -101,7 +101,8 @@ var _ = BeforeSuite(func() {
 	grafeasClient, err = testGrafeasClient(tlsConfig)
 	Expect(err).ToNot(HaveOccurred())
 
-	httpClient, err = testHttpClient(ctx, k8sClient)
+	httpClient, err = testHTTPClient(ctx, k8sClient)
+	Expect(err).ToNot(HaveOccurred())
 }, 60)
 
 var _ = AfterSuite(func() {
@@ -155,12 +156,12 @@ func localstackAWSConfig() *aws.Config {
 	return cfg
 }
 
-func testHttpClient(ctx context.Context, k8sClient client.Client) (*http.Client, error) {
-	rodeTlsSecret := corev1.Secret{}
+func testHTTPClient(ctx context.Context, k8sClient client.Client) (*http.Client, error) {
+	rodeTLSSecret := corev1.Secret{}
 	err := k8sClient.Get(ctx, types.NamespacedName{
 		Namespace: "rode",
 		Name:      "rode-ssl-certs",
-	}, &rodeTlsSecret)
+	}, &rodeTLSSecret)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +170,7 @@ func testHttpClient(ctx context.Context, k8sClient client.Client) (*http.Client,
 	if err != nil {
 		return nil, err
 	}
-	certPool.AppendCertsFromPEM(rodeTlsSecret.Data["ca.crt"])
+	certPool.AppendCertsFromPEM(rodeTLSSecret.Data["ca.crt"])
 
 	return &http.Client{
 		Transport: &http.Transport{

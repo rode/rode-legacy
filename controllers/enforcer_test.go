@@ -295,16 +295,12 @@ func destroyAttester(ctx context.Context, name, namespace string) {
 			Namespace: namespace,
 		}, &att)
 
-		if err == nil {
-			return false
-		}
-
-		return true
+		return err != nil
 	}, checkDuration, checkInterval).Should(BeTrue())
 }
 
 func sendAdmissionRequestForPod(pod *corev1.Pod) *v1beta1.AdmissionResponse {
-	podJson, err := json.Marshal(pod)
+	podJSON, err := json.Marshal(pod)
 	Expect(err).ToNot(HaveOccurred(), "failed to marshal pod to JSON", err)
 
 	admissionReview := v1beta1.AdmissionReview{
@@ -315,15 +311,15 @@ func sendAdmissionRequestForPod(pod *corev1.Pod) *v1beta1.AdmissionResponse {
 			},
 			Namespace: pod.Namespace,
 			Object: runtime.RawExtension{
-				Raw: podJson,
+				Raw: podJSON,
 			},
 		},
 	}
 
-	admissionReviewJson, err := json.Marshal(admissionReview)
+	admissionReviewJSON, err := json.Marshal(admissionReview)
 	Expect(err).ToNot(HaveOccurred(), "failed to marshal admissionReview to JSON", err)
 
-	request, err := http.NewRequest("POST", "https://localhost:31443/validate-v1-pod", bytes.NewBuffer(admissionReviewJson))
+	request, err := http.NewRequest("POST", "https://localhost:31443/validate-v1-pod", bytes.NewBuffer(admissionReviewJSON))
 	Expect(err).ToNot(HaveOccurred(), "failed to create admission review", err)
 
 	request.Header.Set("Content-type", "application/json")
