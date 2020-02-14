@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/go-logr/logr"
@@ -95,12 +96,12 @@ func main() {
 
 	awsConfig := aws.NewAWSConfig(ctrl.Log.WithName("aws").WithName("AWSConfig"))
 
-	grafeasTlsConfig, err := grafeasTlsConfig(setupLog)
+	grafeasTLSConfig, err := grafeasTLSConfig(setupLog)
 	if err != nil {
 		setupLog.Error(err, "error creating grafeas TLS config")
 		os.Exit(1)
 	}
-	grafeasClient, err := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), grafeasTlsConfig, os.Getenv("GRAFEAS_ENDPOINT"))
+	grafeasClient, err := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), grafeasTLSConfig, os.Getenv("GRAFEAS_ENDPOINT"))
 	if err != nil {
 		setupLog.Error(err, "error initializing grafeas client")
 		os.Exit(1)
@@ -127,8 +128,8 @@ func main() {
 		return nil
 	}
 
-	mgr.AddHealthzCheck("test", checker)
-	mgr.AddReadyzCheck("test", checker)
+	_ = mgr.AddHealthzCheck("test", checker)
+	_ = mgr.AddReadyzCheck("test", checker)
 	mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 
 	setupLog.Info("starting manager")
@@ -138,7 +139,7 @@ func main() {
 	}
 }
 
-func grafeasTlsConfig(log logr.Logger) (*tls.Config, error) {
+func grafeasTLSConfig(log logr.Logger) (*tls.Config, error) {
 	clientCert, err := tls.LoadX509KeyPair(os.Getenv("TLS_CLIENT_CERT"), os.Getenv("TLS_CLIENT_KEY"))
 	if err != nil {
 		log.Error(err, "Unable to load client cert")

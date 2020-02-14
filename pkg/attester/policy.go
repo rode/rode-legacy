@@ -48,7 +48,7 @@ func ReadPolicy(in io.Reader) (Policy, error) {
 
 // Evaluate the policy
 func (p *policy) Evaluate(context context.Context, input interface{}) []*Violation {
-	violations := make([]*Violation, 0, 0)
+	violations := make([]*Violation, 0)
 
 	var tracer *topdown.BufferTracer
 	if p.trace {

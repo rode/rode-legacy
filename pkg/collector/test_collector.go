@@ -2,15 +2,15 @@ package collector
 
 import (
 	"context"
+	"time"
+
 	"github.com/go-logr/logr"
 	"github.com/liatrio/rode/pkg/occurrence"
-	"time"
 )
 
 type testCollector struct {
-	logger            logr.Logger
-	occurrenceCreator occurrence.Creator
-	testMessage       string
+	logger      logr.Logger
+	testMessage string
 }
 
 func NewTestCollector(logger logr.Logger, testMessage string) Collector {
@@ -28,7 +28,7 @@ func (t *testCollector) Reconcile(ctx context.Context) error {
 
 func (t *testCollector) Start(ctx context.Context, stopChan chan interface{}, occurrenceCreator occurrence.Creator) error {
 	go func() {
-		for range time.Tick(5 * time.Second) {
+		for range time.NewTicker(5 * time.Second).C {
 			select {
 			case <-ctx.Done():
 				stopChan <- true

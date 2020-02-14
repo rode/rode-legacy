@@ -72,8 +72,7 @@ func (s *signer) Sign(message string) (string, error) {
 }
 
 func (s *signer) Verify(signedMessage string) (string, error) {
-	var entities openpgp.EntityList
-	entities = []*openpgp.Entity{
+	var entities openpgp.EntityList = []*openpgp.Entity{
 		s.entity,
 	}
 

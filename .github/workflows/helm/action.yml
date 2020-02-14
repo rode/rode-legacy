@@ -1,0 +1,8 @@
+name: Skaffold
+description: Publish image 
+branding:
+  icon: upload-cloud
+  color: blue
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

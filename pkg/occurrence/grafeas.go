@@ -8,6 +8,7 @@ import (
 	"github.com/go-logr/logr"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	project "github.com/grafeas/grafeas/proto/v1beta1/project_go_proto"
@@ -68,7 +69,7 @@ func (c *grafeasClient) ListOccurrences(ctx context.Context, resourceURI string)
 	}
 
 	// TODO: remove this hack...grafeas doesn't support filter yet
-	occurrences := make([]*grafeas.Occurrence, 0, 0)
+	occurrences := make([]*grafeas.Occurrence, 0)
 	for _, o := range resp.GetOccurrences() {
 		if o.Resource.Uri == resourceURI {
 			occurrences = append(occurrences, o)
@@ -82,7 +83,7 @@ func (c *grafeasClient) ListOccurrences(ctx context.Context, resourceURI string)
 
 // CreateOccurrences will save the occurence in grafeas
 func (c *grafeasClient) CreateOccurrences(ctx context.Context, occurrences ...*grafeas.Occurrence) error {
-	if occurrences == nil || len(occurrences) == 0 {
+	if len(occurrences) == 0 {
 		return nil
 	}
 
@@ -107,7 +108,7 @@ func (c *grafeasClient) initProject(ctx context.Context) error {
 	_, err := c.projectClient.GetProject(ctx, &project.GetProjectRequest{
 		Name: c.projectID,
 	})
-	if err != nil && grpc.Code(err) == codes.NotFound {
+	if err != nil && status.Code(err) == codes.NotFound {
 		c.log.Info("Creating project", "ProjectID", c.projectID)
 		_, err = c.projectClient.CreateProject(ctx, &project.CreateProjectRequest{
 			Project: &project.Project{

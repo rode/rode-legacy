@@ -50,6 +50,7 @@ var (
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters/status,verbs=get;update;patch
 
+// nolint: gocyclo
 func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("attester", req.NamespacedName)

@@ -1,0 +1,22 @@
+name: tag
+on: 
+  push:
+    #branches:
+    #- actions
+    tags:
+    - 'v*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - run: git fetch origin +refs/tags/*:refs/tags/*
+    - uses: ./.github/workflows/skaffold
+      with:
+        GITHUB_TOKEN: ${{github.token}}
+    - uses: ./.github/workflows/helm
+      with:
+        GITHUB_TOKEN: ${{github.token}}
