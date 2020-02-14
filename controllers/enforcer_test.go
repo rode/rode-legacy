@@ -25,8 +25,14 @@ import (
 )
 
 var _ = Context("enforcers", func() {
+	var imageName string
+
 	ctx := context.TODO()
 	namespace := SetupTestNamespace(ctx)
+
+	BeforeEach(func() {
+		imageName = fmt.Sprintf("liatrio/nginx-%s", rand.String(10))
+	})
 
 	When("an enforcer does not exist for a namespace", func() {
 		It("should allow a pod to be scheduled", func() {
@@ -101,7 +107,7 @@ var _ = Context("enforcers", func() {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Image: "liatrio/nginx",
+							Image: imageName,
 						},
 					},
 				},
@@ -144,7 +150,7 @@ var _ = Context("enforcers", func() {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{
-								Image: "liatrio/nginx",
+								Image: imageName,
 							},
 						},
 					},
@@ -156,13 +162,12 @@ var _ = Context("enforcers", func() {
 			})
 
 			It("should allow a pod to be scheduled if there is an attestation", func() {
-				Skip("not working yet")
 				attestRequest := &attester.AttestRequest{
-					ResourceURI: "liatrio/nginx",
+					ResourceURI: imageName,
 					Occurrences: []*grafeas.Occurrence{
 						{
 							Resource: &grafeas.Resource{
-								Uri: "liatrio/nginx",
+								Uri: imageName,
 							},
 							NoteName: fmt.Sprintf("projects/rode/notes/%s", attesterName),
 							Details: &grafeas.Occurrence_Discovered{
@@ -176,8 +181,14 @@ var _ = Context("enforcers", func() {
 					},
 				}
 
-				_, err := (*internalAttester).Attest(ctx, attestRequest)
+				attestResponse, err := (*internalAttester).Attest(ctx, attestRequest)
 				Expect(err).ToNot(HaveOccurred(), "failed to attest", err)
+
+				_, err = grafeasClient.CreateOccurrence(ctx, &grafeas.CreateOccurrenceRequest{
+					Parent:     "projects/rode",
+					Occurrence: attestResponse.Attestation,
+				})
+				Expect(err).ToNot(HaveOccurred(), "failed to create attest occurrence in grafeas", err)
 
 				pod := corev1.Pod{
 					ObjectMeta: v1.ObjectMeta{
@@ -187,7 +198,7 @@ var _ = Context("enforcers", func() {
 					Spec: corev1.PodSpec{
 						Containers: []corev1.Container{
 							{
-								Image: "liatrio/nginx",
+								Image: imageName,
 							},
 						},
 					},
