@@ -6,3 +6,11 @@ branding:
 runs:
   using: 'docker'
   image: 'Dockerfile'
+
+inputs:
+  registry:
+    description: The OCI registry to push to
+  username:
+    description: The username for accessing OCI registry
+  password:
+    description: The password for accessing OCI registry

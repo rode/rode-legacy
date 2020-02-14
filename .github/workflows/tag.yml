@@ -1,10 +1,10 @@
 name: tag
 on: 
   push:
-    #branches:
-    #- actions
-    tags:
-    - 'v*'
+    branches:
+    - acr
+    #tags:
+    #- 'v*'
 
 jobs:
   publish:
@@ -16,7 +16,11 @@ jobs:
     - run: git fetch origin +refs/tags/*:refs/tags/*
     - uses: ./.github/workflows/skaffold
       with:
-        GITHUB_TOKEN: ${{github.token}}
+        registry: liatrio.azurecr.io
+        username: ${{secrets.ACR_PRINCIPAL_ID}}
+        password: ${{secrets.ACR_PRINCIPAL_PASSWORD}}
     - uses: ./.github/workflows/helm
       with:
-        GITHUB_TOKEN: ${{github.token}}
+        registry: liatrio.azurecr.io
+        username: ${{secrets.ACR_PRINCIPAL_ID}}
+        password: ${{secrets.ACR_PRINCIPAL_PASSWORD}}

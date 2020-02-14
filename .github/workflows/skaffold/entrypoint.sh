@@ -3,5 +3,5 @@ set -e
 
 cd $GITHUB_WORKSPACE
 
-docker login docker.pkg.github.com --username $GITHUB_ACTOR --password $INPUT_GITHUB_TOKEN
-skaffold build --default-repo docker.pkg.github.com/liatrio/rode
+docker login $INPUT_REGISTRY --username $INPUT_USERNAME --password $INPUT_PASSWORD
+skaffold build --default-repo $INPUT_REGISTRY/rode
