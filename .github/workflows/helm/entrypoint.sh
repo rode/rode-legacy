@@ -13,3 +13,4 @@ helm registry login -u $GITHUB_ACTOR -p $INPUT_GITHUB_TOKEN docker.pkg.github.co
 sed -i "s/version:.*/version: $VERSION/" helm-chart/rode/Chart.yaml
 sed -i "s/appVersion:.*/appVersion: v$VERSION/" helm-chart/rode/Chart.yaml
 helm chart save helm-chart/rode docker.pkg.github.com/liatrio/rode/chart:$VERSION
+helm chart push docker.pkg.github.com/liatrio/rode/chart:$VERSION
