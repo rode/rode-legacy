@@ -4,29 +4,35 @@ import (
 	"context"
 	"github.com/go-logr/logr"
 	"github.com/liatrio/rode/pkg/occurrence"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"log"
 	"time"
-  metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-  "k8s.io/client-go/rest"
-  "k8s.io/client-go/kubernetes"
-  "log"
 )
 
 type HarborEventCollector struct {
 	logger            logr.Logger
 	occurrenceCreator occurrence.Creator
-	testMessage       string
+	url               string
+	secret            string
+	project           string
 }
 
-func NewHarborEventCollector(logger logr.Logger, testMessage string) Collector {
+func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string, project string) Collector {
 	return &HarborEventCollector{
-		logger:      logger,
-		testMessage: testMessage,
+		logger:  logger,
+		url:     harborUrl,
+		secret:  secret,
+		project: project,
 	}
 }
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context) error {
 	t.logger.Info("reconciling HARBOR collector")
-  t.listSecret(ctx)
+	t.listSecret(ctx, t.secret)
+	//checkForWebhook
+	//If webhook doesn't exist, createWebhook
 
 	return nil
 }
@@ -39,7 +45,7 @@ func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interfac
 				stopChan <- true
 				return
 			default:
-				t.logger.Info(t.testMessage)
+				t.logger.Info(t.project)
 			}
 		}
 
@@ -55,23 +61,23 @@ func (t *HarborEventCollector) Destroy(ctx context.Context) error {
 	return nil
 }
 
-func (t *HarborEventCollector) listSecret(ctx context.Context) {
-  t.logger.Info("Inside listSecret\n")
-  config, configError := rest.InClusterConfig()
-  if configError != nil {
-    log.Fatal(configError)
-  }
+func (t *HarborEventCollector) listSecret(ctx context.Context, secretname string) {
+	t.logger.Info("Inside listSecret\n")
+	config, configError := rest.InClusterConfig()
+	if configError != nil {
+		log.Fatal(configError)
+	}
 
-  clientset, clientErr := kubernetes.NewForConfig(config)
-  if clientErr != nil {
-    log.Fatal(clientErr)
-  }
+	clientset, clientErr := kubernetes.NewForConfig(config)
+	if clientErr != nil {
+		log.Fatal(clientErr)
+	}
 
-  pods, err := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	secrets, err := clientset.CoreV1().Secrets("rode").Get(secretname, metav1.GetOptions{})
 	if err != nil {
-			panic(err.Error())
-  }
+		panic(err.Error())
+	}
 
-  t.logger.Info("There are %d pods in the cluster\n", len(pods.Items))
-
+	// t.logger.Info("Number of secrets", "numSec", len(secrets.Items))
+	t.logger.Info("DATA", "data", secrets.Data["HARBOR_ADMIN_PASSWORD"])
 }
