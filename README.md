@@ -1,4 +1,5 @@
 # ![](docs/logo.png) Rode 
+![tag](https://github.com/liatrio/rode/workflows/tag/badge.svg)
 > \rōd\ - a line (as of rope or chain) used to attach an anchor to a boat
 
 Rode provides the collection, attestation and enforcement of policies in your software supply chain.
