@@ -49,6 +49,7 @@ rbac:
 container:
   port: 9443
 service:
+  type: ClusterIP
   port: 443
 
 livenessProbe:
