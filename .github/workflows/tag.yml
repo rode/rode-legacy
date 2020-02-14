@@ -1,10 +1,10 @@
 name: tag
 on: 
   push:
-    branches:
-    - actions
-    #tags:
-    #- 'v*'
+    #branches:
+    #- actions
+    tags:
+    - 'v*'
 
 jobs:
   publish:
