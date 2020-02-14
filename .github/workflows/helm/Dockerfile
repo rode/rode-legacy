@@ -16,6 +16,4 @@ RUN apk add -U ca-certificates git curl && \
 COPY "entrypoint.sh" "/entrypoint.sh"
 RUN chmod +x /entrypoint.sh
 
-RUN helm plugin install https://github.com/chartmuseum/helm-push
-
 ENTRYPOINT ["/entrypoint.sh"]
