@@ -8,9 +8,9 @@ runs:
   image: 'Dockerfile'
 
 inputs:
-  registry:
-    description: The OCI registry to push to
+  repository:
+    description: The URL for helm registry
   username:
-    description: The username for accessing OCI registry
+    description: The username for accessing helm registry
   password:
-    description: The password for accessing OCI registry
+    description: The password for accessing helm registry

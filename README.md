@@ -80,6 +80,7 @@ Enforcers are configured to ensure the specified attester referenced in the name
 The easiest way to install rode is via the helm chart:
 
 ```
+helm chart pull docker.pkg.github.com/liatrio/rode/chart:$VERSION
 helm repo add liatrio https://...
 helm upgrade -i rode rode
 ```

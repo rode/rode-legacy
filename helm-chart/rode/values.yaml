@@ -27,7 +27,7 @@ localstack:
   debug: false
 
 image:
-  repository: "liatrio.azurecr.io/rode"
+  repository: "harbor.toolchain.lead.prod.liatr.io/public/rode"
   tag: ""
   pullPolicy: IfNotPresent
 

@@ -16,11 +16,11 @@ jobs:
     - run: git fetch origin +refs/tags/*:refs/tags/*
     - uses: ./.github/workflows/skaffold
       with:
-        registry: liatrio.azurecr.io
-        username: ${{secrets.ACR_PRINCIPAL_ID}}
-        password: ${{secrets.ACR_PRINCIPAL_PASSWORD}}
+        registry: harbor.toolchain.lead.prod.liatr.io/public
+        username: ${{secrets.HARBOR_USERNAME}}
+        password: ${{secrets.HARBOR_PASSWORD}}
     - uses: ./.github/workflows/helm
       with:
-        registry: liatrio.azurecr.io
-        username: ${{secrets.ACR_PRINCIPAL_ID}}
-        password: ${{secrets.ACR_PRINCIPAL_PASSWORD}}
+        repository: https://harbor.toolchain.lead.prod.liatr.io/chartrepo/public
+        username: ${{secrets.HARBOR_USERNAME}}
+        password: ${{secrets.HARBOR_PASSWORD}}
