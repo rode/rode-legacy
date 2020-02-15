@@ -7,6 +7,18 @@ metadata:
   name: rode-manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - rode.liatr.io
   resources:
   - attesters

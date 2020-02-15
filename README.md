@@ -72,7 +72,7 @@ Enforcers are configured to ensure the specified attester referenced in the name
 
 
 ```
-  "rode.liatr.io/enforce-attester": myAttester
+  "rode.liatr.io/enforce": true
 ```
 
 ![](docs/enforcers.png)
@@ -81,16 +81,19 @@ Enforcers are configured to ensure the specified attester referenced in the name
 The easiest way to install rode is via the helm chart:
 
 ```
-helm chart pull docker.pkg.github.com/liatrio/rode/chart:$VERSION
-helm repo add liatrio https://...
-helm upgrade -i rode rode
+helm repo add liatrio https://harbor.toolchain.lead.prod.liatr.io/chartrepo/public
+helm upgrade -i rode liatrio/rode
 ```
 
 Setup collectors, attesters and enforcers through a quickstart:
 
 `kubectl apply -f examples/aws-quickstart.yaml`
 
-The ECR event collector requires the following IAM policy:
+The ECR event collector requires the following IAM policy.  Either attach the policy to the EC2 instance or use IRSA and pass the role ARN to Helm:
+
+```
+helm upgrade -i rode liatrio/rode --set rbac.serviceAccountAnnotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::1234567890:role/RodeServiceAccount
+```
 
 ```
 {
