@@ -27,13 +27,13 @@ localstack:
   debug: false
 
 image:
-  repository: ""
+  repository: "harbor.toolchain.lead.prod.liatr.io/public/rode"
   tag: ""
   pullPolicy: IfNotPresent
 
 enforcer:
   enabled: true
-  namespaceLabel: "rode.liatr.io/enforce-attester"
+  namespaceLabel: "rode.liatr.io/enforce"
   excludedNamespaces:
   - kube-system
 
@@ -49,6 +49,7 @@ rbac:
 container:
   port: 9443
 service:
+  type: ClusterIP
   port: 443
 
 livenessProbe:

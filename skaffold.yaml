@@ -2,7 +2,7 @@ apiVersion: skaffold/v2alpha1
 kind: Config
 build:
   artifacts:
-  - image: liatrio/rode
+  - image: rode
   local:
     useBuildkit: true
 deploy:
@@ -13,7 +13,7 @@ deploy:
         skipBuildDependencies: true
         wait: true
         values:
-          image: liatrio/rode
+          image: rode
         imageStrategy:
           helm: {}
 portForward:
