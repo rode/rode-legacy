@@ -1,0 +1,16 @@
+domain: liatr.io
+repo: github.com/liatrio/rode
+resources:
+- group: rode
+  kind: Collector
+  version: v1alpha1
+- group: rode
+  kind: Attester
+  version: v1alpha1
+- group: rode
+  kind: Enforcer
+  version: v1alpha1
+- group: rode
+  kind: ClusterEnforcer
+  version: v1alpha1
+version: "2"

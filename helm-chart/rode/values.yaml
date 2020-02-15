@@ -24,15 +24,16 @@ secret:
 
 localstack:
   enabled: false
+  debug: false
 
 image:
-  repository: ""
+  repository: "harbor.toolchain.lead.prod.liatr.io/public/rode"
   tag: ""
   pullPolicy: IfNotPresent
 
 enforcer:
   enabled: true
-  namespaceLabel: "rode.liatr.io/enforce-attesters"
+  namespaceLabel: "rode.liatr.io/enforce"
   excludedNamespaces:
   - kube-system
 
@@ -46,11 +47,13 @@ rbac:
   serviceAccountAnnotations: {}
 
 container:
-  port: 4000
+  port: 9443
 service:
+  type: ClusterIP
   port: 443
 
 livenessProbe:
+  port: 4000
   failureThreshold: 3
   initialDelaySeconds: 30
   periodSeconds: 10
@@ -58,6 +61,7 @@ livenessProbe:
   timeoutSeconds: 5
 
 readinessProbe:
+  port: 4000
   failureThreshold: 6
   initialDelaySeconds: 0
   periodSeconds: 5

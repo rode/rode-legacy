@@ -25,7 +25,7 @@ spec:
           {{- end }}
           env:
             - name: DEBUG
-              value: "0"
+              value: {{ .Values.debug | default false | ternary "1" "0" | quote }}
             - name: USE_SSL
               value: !!string {{ .Values.localstack.useSsl }}
             - name: SERVICES

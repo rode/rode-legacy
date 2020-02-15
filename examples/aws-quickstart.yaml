@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rode
+---
+apiVersion: rode.liatr.io/v1alpha1
+kind: Collector
+metadata:
+  namespace: rode
+  name: aws-ecr-event
+spec:
+  type: ecr_event
+  ecr:
+    queueName: rode-ecr-event-collector
+---
+apiVersion: rode.liatr.io/v1alpha1
+kind: Attester
+metadata:
+  namespace: rode
+  name: imagescan
+spec:
+  policy: |
+    package imagescan
+
+    violation[{"msg":"analysis failed"}]{
+        input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
+    }
+    violation[{"msg":"analysis not performed"}]{
+        analysisStatus := [s | s := input.occurrences[_].discovered.discovered.analysisStatus]
+        count(analysisStatus) = 0
+    }
+    violation[{"msg":"critical vulnerability found"}]{
+        severityCount("CRITICAL") > 0
+    }
+    violation[{"msg":"high vulnerability found"}]{
+        severityCount("HIGH") > 10
+    }
+    severityCount(severity) = cnt {
+        cnt := count([v | v := input.occurrences[_].vulnerability.severity; v == severity])
+    }
+---
+apiVersion: rode.liatr.io/v1alpha1
+kind: ClusterEnforcer
+metadata:
+  name: default
+spec:
+  namespaces:
+  - default
+  matchStrategy: Include
+  attesters:
+  - namespace: rode
+    name: imagescan

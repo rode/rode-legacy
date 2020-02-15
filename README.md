@@ -1,4 +1,5 @@
 # ![](docs/logo.png) Rode 
+![tag](https://github.com/liatrio/rode/workflows/tag/badge.svg)
 > \rōd\ - a line (as of rope or chain) used to attach an anchor to a boat
 
 Rode provides the collection, attestation and enforcement of policies in your software supply chain.
@@ -33,7 +34,7 @@ If all occurrences exist and comply with the policy, then the attester will use 
 
 ![](docs/attesters.png)
 
-Attesters are defined as `Atteter` [custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).  See below for an example:
+Attesters are defined as `Attester` [custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).  See below for an example:
 
 ```
 apiVersion: rode.liatr.io/v1alpha1
@@ -67,15 +68,11 @@ The PGP key is automatically generated and stored as a Kubernetes secret if it d
 ## Enforcers
 Enforcers are defined as [validating admission webhook](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) that ensures the resource defined as an `image` in the `Pod` has been properly attested.
 
-Enforcers are configured to ensure specified attesters referenced in the namespace for the pod have successfully created attestations. The namespace must include a label for enforcement to be activated:
+Enforcers are configured to ensure the specified attester referenced in the namespace for the pod had successfully created an attestation. The namespace must include a label for enforcement to be activated:
 
 
 ```
-  "rode.liatr.io/enforce-attesters": myAttester
-```
-or
-```
-  "rode.liatr.io/enforce-attesters": "*"
+  "rode.liatr.io/enforce": true
 ```
 
 ![](docs/enforcers.png)
@@ -84,11 +81,19 @@ or
 The easiest way to install rode is via the helm chart:
 
 ```
-helm repo add liatrio https://...
-helm upgrade -i rode rode
+helm repo add liatrio https://harbor.toolchain.lead.prod.liatr.io/chartrepo/public
+helm upgrade -i rode liatrio/rode
 ```
 
-The ECR event collector requires the following IAM policy:
+Setup collectors, attesters and enforcers through a quickstart:
+
+`kubectl apply -f examples/aws-quickstart.yaml`
+
+The ECR event collector requires the following IAM policy.  Either attach the policy to the EC2 instance or use IRSA and pass the role ARN to Helm:
+
+```
+helm upgrade -i rode liatrio/rode --set rbac.serviceAccountAnnotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::1234567890:role/RodeServiceAccount
+```
 
 ```
 {
@@ -118,11 +123,18 @@ The ECR event collector requires the following IAM policy:
 }
 ```
 # Development
-To run locally, use skaffold with the `local` profile:
+To run locally, install CRDs, then use skaffold with the `local` profile:
 
+To install CRDs (Only needs to be run once):
+`make install`
+
+To run controllers:
 `skaffold dev --port-forward`
 
 This will also run [localstack](https://github.com/localstack/localstack) to mock services such as SQS.
+
+Setup collectors, attesters and enforcers:
+`kubectl apply -f examples/aws-quickstart.yaml`
 
 To create an occurence, use the aws cli to send a test message to localstack:
 

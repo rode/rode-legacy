@@ -1,42 +1,28 @@
-#############################
-# STEP 1 build the executable
-#############################
-FROM golang:1.13-alpine as builder
+# syntax = docker/dockerfile:experimental
+# Build the manager binary
+FROM golang:1.13 as builder
 
-WORKDIR /app
-
-# Install git + SSL ca certificates.
-# Git is required for fetching the dependencies.
-# Ca-certificates is required to call HTTPS endpoints.
-RUN apk update && apk add --no-cache git ca-certificates && update-ca-certificates
-
-# Create appuser
-RUN adduser -D -g '' appuser
-
-# Get dependencies
-ADD go.* ./ 
+WORKDIR /workspace
+# Copy the Go Modules manifests
+COPY go.mod go.sum /workspace/
+# cache deps before building and copying source so that we don't need to re-download as much
+# and so that source changes don't invalidate our downloaded layer
 RUN go mod download
-RUN go mod verify
 
-# Build binary
-ADD cmd ./cmd
-ADD pkg ./pkg
-ENV GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-RUN go build -ldflags="-w -s" -o ./bin/rode-collector ./cmd/collector/* 
+# Copy the go source
+COPY main.go main.go
+COPY api/ api/
+COPY controllers/ controllers/
+COPY pkg/ pkg/
 
-########################
-# STEP 2 build the image
-########################
-FROM scratch
+# Build
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o manager main.go
 
-# Import from builder.
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /etc/passwd /etc/passwd
+# Use distroless as minimal base image to package the manager binary
+# Refer to https://github.com/GoogleContainerTools/distroless for more details
+FROM gcr.io/distroless/static:nonroot
+WORKDIR /
+COPY --from=builder /workspace/manager .
+USER nonroot:nonroot
 
-# Copy our static executable
-COPY --from=builder /app/bin/rode-collector /bin/rode-collector
-
-# Use an unprivileged user.
-USER appuser
-
-ENTRYPOINT [ "/bin/rode-collector" ]
+ENTRYPOINT ["/manager"]

@@ -6,8 +6,12 @@
       "group": "",
       "kind": "Pod"
     },
-    "namespace": "foo",
+    "namespace": "default",
     "object": {
+      "metadata": {
+        "namespace": "default",
+        "name": "my-pod"
+      },
       "spec": {
         "containers": [
           {

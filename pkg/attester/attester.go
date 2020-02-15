@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/golang/protobuf/jsonpb"
 
@@ -47,6 +48,14 @@ type AttestResponse struct {
 	Attestation *grafeas.Occurrence
 }
 
+type ViolationError struct {
+	Violations []*Violation
+}
+
+func (ve ViolationError) Error() string {
+	return fmt.Sprintf("%v", ve.Violations)
+}
+
 func (a *attester) String() string {
 	return a.name
 }
@@ -64,7 +73,7 @@ func (a *attester) Attest(ctx context.Context, req *AttestRequest) (*AttestRespo
 	violations := a.policy.Evaluate(ctx, input)
 
 	if len(violations) > 0 {
-		return nil, fmt.Errorf("Unable to attest resource %s violations=%v", req.ResourceURI, violations)
+		return nil, ViolationError{violations}
 	}
 
 	sig, err := a.signer.Sign(req.ResourceURI)
@@ -73,7 +82,7 @@ func (a *attester) Attest(ctx context.Context, req *AttestRequest) (*AttestRespo
 	}
 
 	attestOccurrence := &grafeas.Occurrence{}
-	attestOccurrence.NoteName = fmt.Sprintf("projects/%s/notes/%s", a.projectID, a.name)
+	attestOccurrence.NoteName = fmt.Sprintf("projects/%s/notes/%s", a.projectID, strings.ReplaceAll(a.name, "/", "."))
 	attestOccurrence.Resource = &grafeas.Resource{Uri: req.ResourceURI}
 	attestOccurrence.Details = &grafeas.Occurrence_Attestation{
 		Attestation: &attestation.Details{
@@ -124,7 +133,7 @@ type occurrenceInput struct {
 
 func (oi *occurrenceInput) addOccurrence(occurrence *grafeas.Occurrence) error {
 	if oi.Occurrences == nil {
-		oi.Occurrences = make([]map[string]interface{}, 0, 0)
+		oi.Occurrences = make([]map[string]interface{}, 0)
 	}
 
 	marshaler := &jsonpb.Marshaler{}

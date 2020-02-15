@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"go.uber.org/zap"
+	"github.com/go-logr/logr"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/endpoints"
@@ -14,7 +14,7 @@ import (
 )
 
 // NewAWSConfig creates the AWS config
-func NewAWSConfig(logger *zap.SugaredLogger) *aws.Config {
+func NewAWSConfig(log logr.Logger) *aws.Config {
 	cfg := &aws.Config{}
 	region := os.Getenv("AWS_REGION")
 	if region == "" {
@@ -24,7 +24,7 @@ func NewAWSConfig(logger *zap.SugaredLogger) *aws.Config {
 
 	customResolver := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
 		endpoint := os.Getenv(fmt.Sprintf("AWS_%s_ENDPOINT", strings.ToUpper(service)))
-		logger.Debugf("mapping service '%s' to endpoint '%s'", service, endpoint)
+		log.Info("mapping service to endpoint", "service", service, "endpoint", endpoint)
 		if endpoint != "" {
 			return endpoints.ResolvedEndpoint{
 				URL: fmt.Sprintf("http://%s", endpoint),
@@ -39,10 +39,8 @@ func NewAWSConfig(logger *zap.SugaredLogger) *aws.Config {
 	session := session.Must(session.NewSession(cfg))
 	svc := sts.New(session)
 	result, err := svc.GetCallerIdentity(nil)
-	if err != nil {
-		logger.Errorf("Error getting caller identity %v\n", err)
-	} else {
-		logger.Infof("AWS Identity: %s", aws.StringValue(result.Arn))
+	if err == nil {
+		log.Info("Finished AWS Identity", "result", result)
 	}
 
 	return cfg

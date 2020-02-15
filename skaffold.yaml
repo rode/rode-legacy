@@ -2,7 +2,9 @@ apiVersion: skaffold/v2alpha1
 kind: Config
 build:
   artifacts:
-  - image: liatrio/rode
+  - image: rode
+  local:
+    useBuildkit: true
 deploy:
   helm:
     releases:
@@ -11,26 +13,37 @@ deploy:
         skipBuildDependencies: true
         wait: true
         values:
-          image: liatrio/rode
+          image: rode
         imageStrategy:
           helm: {}
 portForward:
 - resourceType: service
   resourceName: rode
   port: 443 
-  localPort: 4000
+  localPort: 9443
 profiles:
 - name: local
   activation:
     - kubeContext: docker-for-desktop
+    - kubeContext: docker-desktop
   patches:
+    - op: add
+      path: /deploy/helm/releases/0/namespace
+      value: rode
     - op: add
       path: /deploy/helm/releases/0/overrides
       value:
+        service:
+          type: NodePort
+          nodePort: 31443
         grafeas:
           storageType: "memstore"
+          service:
+            type: NodePort
+            nodePort: 30443
         localstack:
           enabled: true
+          debug: true
           persistence:
             enabled: false
         extraEnv:

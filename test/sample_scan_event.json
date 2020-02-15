@@ -13,7 +13,10 @@
     "scan-status": "COMPLETE",
     "repository-name": "springtrader",
     "image-digest": "sha256:b88ca0f4a7fe2c67fc8bdb67ad405f418ca0be6aec442c79ae32253138da2dd5",
-    "image-tags": ["foo"],
+    "image-tags": [
+      "foo",
+      "bar"
+    ],
     "finding-severity-counts": {
       "MEDIUM": 5,
       "HIGH": 9
