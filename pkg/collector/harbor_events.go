@@ -9,6 +9,11 @@ import (
 	"k8s.io/client-go/rest"
 	"log"
 	"time"
+	"strconv"
+	"net/http"
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
 )
 
 type HarborEventCollector struct {
@@ -17,6 +22,24 @@ type HarborEventCollector struct {
 	url               string
 	secret            string
 	project           string
+}
+
+type Project struct {
+	ProjectID          int       `json:"project_id"`
+	Name               string    `json:"name"`
+}
+
+type JsonInput struct {
+	Targets    []Targets `json:"targets"`
+	EventTypes []string `json:"event_types"`
+  Enabled    bool `json:"enabled"`
+}
+
+type Targets struct {
+	Type           string `json:"type"`
+  Address        string `json:"address"`
+  AuthHeader     string `json:"auth_header"`
+  SkipCertVerify bool   `json:"skip_cert_verify"`
 }
 
 func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string, project string) Collector {
@@ -30,7 +53,7 @@ func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context) error {
 	t.logger.Info("reconciling HARBOR collector")
-	t.listSecret(ctx, t.secret)
+	t.getHarborCredentials(ctx, t.secret)
 	//checkForWebhook
 	//If webhook doesn't exist, createWebhook
 
@@ -61,8 +84,8 @@ func (t *HarborEventCollector) Destroy(ctx context.Context) error {
 	return nil
 }
 
-func (t *HarborEventCollector) listSecret(ctx context.Context, secretname string) {
-	t.logger.Info("Inside listSecret\n")
+func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretname string) {
+	t.logger.Info("Inside getHarborCredentials\n")
 	config, configError := rest.InClusterConfig()
 	if configError != nil {
 		log.Fatal(configError)
