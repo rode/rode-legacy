@@ -151,9 +151,10 @@ func main() {
 	mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 
 	go func() {
-		err := webhookServer.ListenAndServe()
-		setupLog.Error(err, "error starting webhook server")
-		os.Exit(1)
+		if err := webhookServer.ListenAndServe(); err != nil {
+			setupLog.Error(err, "error starting webhook server")
+			os.Exit(1)
+		}
 	}()
 
 	signalHandler := ctrl.SetupSignalHandler()
