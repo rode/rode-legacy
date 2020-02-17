@@ -58,15 +58,13 @@ func main() {
 
   bodyJson, err := json.Marshal(body)
 
-  //log.Print(bytes.NewBuffer(bodyJson))
-
   request, err := http.NewRequest("GET", "https://harbor.toolchain.lead.sandbox.liatr.io/api/projects/", nil)
-  apiResponse, err := client.Do(request)
+  resp, err := client.Do(request)
   if err != nil {
     log.Print(err)
   }
 
-  projectList, err := ioutil.ReadAll(apiResponse.Body)
+  projectList, err := ioutil.ReadAll(resp.Body)
 
   var project []Project
 
@@ -79,22 +77,40 @@ func main() {
   }
 
   if projectId != ""{
-    url := "https://harbor.toolchain.lead.sandbox.liatr.io/api/projects/" + projectId + "/webhook/policies"
-    
-    log.Print(url)
 
-    req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyJson))
-    req.SetBasicAuth("", "")
-    //req.Header.Add("If-None-Match", `W/"wyzzy"`)
-    resp, err := client.Do(req)
+
+    url := "https://harbor.toolchain.lead.sandbox.liatr.io/api/projects/" + projectId + "/webhook/policies"
+
+    request, err := http.NewRequest("GET", url, nil)
+    request.SetBasicAuth("", "")
+    resp, err := client.Do(request)
     if err != nil {
       log.Print(err)
     }
-    log.Print(resp)
-    // ...
-    
-    defer resp.Body.Close()
+
+
+
+    //log.Print(resp)
+
+    var webhooks []string
+    webhookJson, err := ioutil.ReadAll(resp.Body)
+    json.Unmarshal([]byte(webhookJson), &webhooks)
+
+    if len(webhooks) == 0 {
+ 
+
+      req, err := http.NewRequest("POST", url, bytes.NewBuffer(bodyJson))
+
+      req.SetBasicAuth("", "")
+      //req.Header.Add("If-None-Match", `W/"wyzzy"`)
+      resp, err := client.Do(req)
+      if err != nil {
+        log.Print(err)
+      }
+      log.Print(resp)
+      
+      defer resp.Body.Close()
+
+    }
   }
-
-
 }
