@@ -21,7 +21,7 @@ func NewTestCollector(logger logr.Logger, testMessage string) Collector {
 	}
 }
 
-func (i *testCollector) Type() string {
+func (t *testCollector) Type() string {
 	return "test"
 }
 

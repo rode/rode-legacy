@@ -109,9 +109,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Info("worker not found for collector", "collector", req.NamespacedName.String())
 		}
 
-		if _, ok := r.WebhookHandlers[webhookHandlerPath(c, req)]; ok {
-			delete(r.WebhookHandlers, webhookHandlerPath(c, req))
-		}
+		delete(r.WebhookHandlers, webhookHandlerPath(c, req))
 
 		err := c.Destroy(collectorWorker.context)
 		if err != nil {
