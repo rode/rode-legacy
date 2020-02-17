@@ -39,6 +39,7 @@ type AttesterReconciler struct {
 	Attesters map[string]attester.Attester
 }
 
+// ListAttesters returns a list of Attester objects
 func (r *AttesterReconciler) ListAttesters() map[string]attester.Attester {
 	return r.Attesters
 }
@@ -50,7 +51,7 @@ var (
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=attesters/status,verbs=get;update;patch
 
-// nolint: gocyclo
+// Reconcile runs whenever a change to an Attester is made. It attempts to match the current state of the attester to the desired state.
 func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("attester", req.NamespacedName)
@@ -233,6 +234,7 @@ func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1a
 	return nil
 }
 
+// SetupWithManager sets up the watching of Attester objects and filters out the events we don't want to watch
 func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rodev1alpha1.Attester{}).
@@ -243,6 +245,7 @@ func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
+// AttesterToConditioner takes an Attester and returns a util.Conditioner
 func attesterToConditioner(o runtime.Object) util.Conditioner {
 	return o.(*rodev1alpha1.Attester)
 }

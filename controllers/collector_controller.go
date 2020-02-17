@@ -41,6 +41,7 @@ type CollectorReconciler struct {
 	Workers           map[string]*CollectorWorker
 }
 
+// CollectorWorker does the work for a Collector object
 type CollectorWorker struct {
 	context   context.Context
 	collector *collector.Collector
@@ -55,6 +56,7 @@ var (
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors/status,verbs=get;update;patch
 
+// Reconcile runs whenever a change to a Collector is made. It attempts to match the current state of the Collector to the desired state
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("collector", req.NamespacedName)
@@ -179,6 +181,7 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 	return nil
 }
 
+// SetupWithManager sets up the watching of Collector objects and filters out the events we don't want to watch
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rodev1alpha1.Collector{}).
