@@ -71,22 +71,6 @@ func main() {
 		o.Development = true
 	}))
 
-	handlers := make(map[string]func(writer http.ResponseWriter, request *http.Request))
-	webhookMux := http.NewServeMux()
-	webhookMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		path := request.URL.Path[1:]
-
-		if handler, ok := handlers[path]; ok {
-			handler(writer, request)
-		} else {
-			writer.WriteHeader(http.StatusNotFound)
-		}
-	})
-	webhookServer := http.Server{
-		Addr:    ":8080",
-		Handler: webhookMux,
-	}
-
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
@@ -125,6 +109,22 @@ func main() {
 	}
 
 	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters)
+
+	handlers := make(map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator))
+	webhookMux := http.NewServeMux()
+	webhookMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		path := request.URL.Path[1:]
+
+		if handler, ok := handlers[path]; ok {
+			handler(writer, request, occurrenceCreator)
+		} else {
+			writer.WriteHeader(http.StatusNotFound)
+		}
+	})
+	webhookServer := http.Server{
+		Addr:    ":8080",
+		Handler: webhookMux,
+	}
 
 	if err = (&controllers.CollectorReconciler{
 		Client:            mgr.GetClient(),
