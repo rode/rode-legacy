@@ -59,6 +59,7 @@ var (
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
+// nolint: gocyclo
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("collector", req.NamespacedName)
