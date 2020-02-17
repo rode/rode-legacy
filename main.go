@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
@@ -59,7 +60,7 @@ func main() {
 	var healthAddr string
 	var certDir string
 	var enableLeaderElection bool
-	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
+	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "The address the metric endpoint binds to.")
 	flag.StringVar(&healthAddr, "health-addr", ":4000", "The address the health endpoint binds to.")
 	flag.StringVar(&certDir, "cert-dir", "/certificates", "The path to tls certificates.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
@@ -109,6 +110,22 @@ func main() {
 
 	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters)
 
+	handlers := make(map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator))
+	webhookMux := http.NewServeMux()
+	webhookMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+		path := request.URL.Path[1:]
+
+		if handler, ok := handlers[path]; ok {
+			handler(writer, request, occurrenceCreator)
+		} else {
+			writer.WriteHeader(http.StatusNotFound)
+		}
+	})
+	webhookServer := http.Server{
+		Addr:    ":8080",
+		Handler: webhookMux,
+	}
+
 	if err = (&controllers.CollectorReconciler{
 		Client:            mgr.GetClient(),
 		Log:               ctrl.Log.WithName("controllers").WithName("Collector"),
@@ -116,6 +133,7 @@ func main() {
 		AWSConfig:         awsConfig,
 		OccurrenceCreator: occurrenceCreator,
 		Workers:           make(map[string]*controllers.CollectorWorker),
+		WebhookHandlers:   handlers,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Collector")
 		os.Exit(1)
@@ -132,10 +150,30 @@ func main() {
 	_ = mgr.AddReadyzCheck("test", checker)
 	mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 
+	go func() {
+		if err := webhookServer.ListenAndServe(); err != nil {
+			setupLog.Error(err, "error starting webhook server")
+			os.Exit(1)
+		}
+	}()
+
+	signalHandler := ctrl.SetupSignalHandler()
+	controllerSignalHandler := make(chan struct{})
+
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
-		setupLog.Error(err, "problem running manager")
-		os.Exit(1)
+	go func() {
+		if err := mgr.Start(controllerSignalHandler); err != nil {
+			setupLog.Error(err, "problem running manager")
+			os.Exit(1)
+		}
+	}()
+
+	<-signalHandler
+	close(controllerSignalHandler)
+	ctrl.Log.Info("shutting down webhook server")
+	err = webhookServer.Shutdown(context.Background())
+	if err != nil {
+		ctrl.Log.Error(err, "error shutting down webhook server")
 	}
 }
 

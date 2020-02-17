@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"k8s.io/apimachinery/pkg/types"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -41,7 +42,11 @@ func NewEcrEventCollector(logger logr.Logger, awsConfig *aws.Config, queueName s
 	}
 }
 
-func (i *ecrCollector) Reconcile(ctx context.Context) error {
+func (i *ecrCollector) Type() string {
+	return "ecr_event"
+}
+
+func (i *ecrCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
 	err := i.reconcileSQS(ctx)
 	if err != nil {
 		return err

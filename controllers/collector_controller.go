@@ -17,6 +17,8 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-logr/logr"
@@ -39,6 +41,7 @@ type CollectorReconciler struct {
 	AWSConfig         *aws.Config
 	OccurrenceCreator occurrence.Creator
 	Workers           map[string]*CollectorWorker
+	WebhookHandlers   map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator)
 }
 
 type CollectorWorker struct {
@@ -56,6 +59,7 @@ var (
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
+// nolint: gocyclo
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("collector", req.NamespacedName)
@@ -96,15 +100,14 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if !col.ObjectMeta.DeletionTimestamp.IsZero() && containsFinalizer(col.ObjectMeta.Finalizers, collectorFinalizerName) {
 		log.Info("stopping worker")
 
-		collectorWorker, ok := r.Workers[req.NamespacedName.String()]
-		if ok {
+		if collectorWorker, ok := r.Workers[req.NamespacedName.String()]; ok {
 			collectorWorker.done()
 			<-collectorWorker.stopChan
 
 			delete(r.Workers, req.NamespacedName.String())
-		} else {
-			log.Info("worker not found for collector", "collector", req.NamespacedName.String())
 		}
+
+		delete(r.WebhookHandlers, webhookHandlerPath(c, req))
 
 		err := c.Destroy(collectorWorker.context)
 		if err != nil {
@@ -119,7 +122,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
-	err = c.Reconcile(ctx)
+	err = c.Reconcile(ctx, req.NamespacedName)
 	if err != nil {
 		log.Error(err, "error reconciling collector")
 		return r.setCollectorActive(ctx, col, err)
@@ -129,21 +132,27 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return r.setCollectorActive(ctx, col, nil)
 	}
 
-	workerContext, cancel := context.WithCancel(ctx)
-	collectorWorker = &CollectorWorker{
-		context:   workerContext,
-		collector: &c,
-		stopChan:  make(chan interface{}),
-		done:      cancel,
+	if webhookCollector, ok := c.(collector.WebhookCollector); ok {
+		r.WebhookHandlers[webhookHandlerPath(c, req)] = webhookCollector.HandleWebhook
 	}
 
-	err = c.Start(collectorWorker.context, collectorWorker.stopChan, r.OccurrenceCreator)
-	if err != nil {
-		log.Error(err, "error starting collector")
-		return r.setCollectorActive(ctx, col, err)
-	}
+	if startableCollector, ok := c.(collector.StartableCollector); ok {
+		workerContext, cancel := context.WithCancel(ctx)
+		collectorWorker = &CollectorWorker{
+			context:   workerContext,
+			collector: &c,
+			stopChan:  make(chan interface{}),
+			done:      cancel,
+		}
 
-	r.Workers[req.NamespacedName.String()] = collectorWorker
+		err = startableCollector.Start(collectorWorker.context, collectorWorker.stopChan, r.OccurrenceCreator)
+		if err != nil {
+			log.Error(err, "error starting collector")
+			return r.setCollectorActive(ctx, col, err)
+		}
+
+		r.Workers[req.NamespacedName.String()] = collectorWorker
+	}
 
 	return r.setCollectorActive(ctx, col, nil)
 }
@@ -178,6 +187,10 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 	}
 
 	return nil
+}
+
+func webhookHandlerPath(c collector.Collector, req ctrl.Request) string {
+	return fmt.Sprintf("webhook/%s/%s/%s", c.Type(), req.Namespace, req.Name)
 }
 
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
