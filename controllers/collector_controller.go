@@ -55,6 +55,7 @@ var (
 
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile runs whenever a change to a Collector is made. It attempts to match the current state of the Collector to the desired state
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {

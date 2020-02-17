@@ -1,8 +1,6 @@
 name: tag
 on: 
   push:
-    #branches:
-    #- actions
     tags:
     - 'v*'
 
@@ -16,7 +14,11 @@ jobs:
     - run: git fetch origin +refs/tags/*:refs/tags/*
     - uses: ./.github/workflows/skaffold
       with:
-        GITHUB_TOKEN: ${{github.token}}
+        registry: harbor.toolchain.lead.prod.liatr.io/public
+        username: ${{secrets.HARBOR_USERNAME}}
+        password: ${{secrets.HARBOR_PASSWORD}}
     - uses: ./.github/workflows/helm
       with:
-        GITHUB_TOKEN: ${{github.token}}
+        repository: https://harbor.toolchain.lead.prod.liatr.io/chartrepo/public
+        username: ${{secrets.HARBOR_USERNAME}}
+        password: ${{secrets.HARBOR_PASSWORD}}
