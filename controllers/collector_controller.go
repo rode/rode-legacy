@@ -17,6 +17,8 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-logr/logr"
@@ -39,6 +41,7 @@ type CollectorReconciler struct {
 	AWSConfig         *aws.Config
 	OccurrenceCreator occurrence.Creator
 	Workers           map[string]*CollectorWorker
+	WebhookHandlers   map[string]func(writer http.ResponseWriter, request *http.Request)
 }
 
 type CollectorWorker struct {
@@ -106,6 +109,10 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Info("worker not found for collector", "collector", req.NamespacedName.String())
 		}
 
+		if _, ok := r.WebhookHandlers[webhookHandlerPath(c, req)]; ok {
+			delete(r.WebhookHandlers, webhookHandlerPath(c, req))
+		}
+
 		err := c.Destroy(collectorWorker.context)
 		if err != nil {
 			return r.setCollectorActive(ctx, col, err)
@@ -127,6 +134,10 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	if collectorExists {
 		return r.setCollectorActive(ctx, col, nil)
+	}
+
+	if webhookCollector, ok := c.(collector.WebhookCollector); ok {
+		r.WebhookHandlers[webhookHandlerPath(c, req)] = webhookCollector.HandleWebhook
 	}
 
 	workerContext, cancel := context.WithCancel(ctx)
@@ -178,6 +189,10 @@ func (r *CollectorReconciler) registerFinalizer(logger logr.Logger, collector *r
 	}
 
 	return nil
+}
+
+func webhookHandlerPath(c collector.Collector, req ctrl.Request) string {
+	return fmt.Sprintf("webhook/%s/%s/%s", c.Type(), req.Namespace, req.Name)
 }
 
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {

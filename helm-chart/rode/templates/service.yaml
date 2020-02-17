@@ -17,6 +17,10 @@ spec:
       {{- end }}
       protocol: TCP
       name: rode
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: collector-webhook
   selector:
     app: {{ template "rode.name" . }}
     release: {{ .Release.Name }}

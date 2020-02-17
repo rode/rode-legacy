@@ -2,6 +2,7 @@ package collector
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -18,6 +19,10 @@ func NewTestCollector(logger logr.Logger, testMessage string) Collector {
 		logger:      logger,
 		testMessage: testMessage,
 	}
+}
+
+func (i *testCollector) Type() string {
+	return "test"
 }
 
 func (t *testCollector) Reconcile(ctx context.Context) error {
@@ -42,6 +47,12 @@ func (t *testCollector) Start(ctx context.Context, stopChan chan interface{}, oc
 	}()
 
 	return nil
+}
+
+func (t *testCollector) HandleWebhook(writer http.ResponseWriter, request *http.Request) {
+	t.logger.Info("got request for test collector")
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (t *testCollector) Destroy(ctx context.Context) error {

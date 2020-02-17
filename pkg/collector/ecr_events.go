@@ -41,6 +41,10 @@ func NewEcrEventCollector(logger logr.Logger, awsConfig *aws.Config, queueName s
 	}
 }
 
+func (i *ecrCollector) Type() string {
+	return "ecr_event"
+}
+
 func (i *ecrCollector) Reconcile(ctx context.Context) error {
 	err := i.reconcileSQS(ctx)
 	if err != nil {
