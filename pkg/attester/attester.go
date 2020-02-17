@@ -133,7 +133,7 @@ type occurrenceInput struct {
 
 func (oi *occurrenceInput) addOccurrence(occurrence *grafeas.Occurrence) error {
 	if oi.Occurrences == nil {
-		oi.Occurrences = make([]map[string]interface{}, 0, 0)
+		oi.Occurrences = make([]map[string]interface{}, 0)
 	}
 
 	marshaler := &jsonpb.Marshaler{}
