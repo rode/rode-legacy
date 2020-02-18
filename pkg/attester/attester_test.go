@@ -79,12 +79,6 @@ func TestClient_Verify(t *testing.T) {
 
 }
 
-/*
-func TestClient_addOccurrence(t *testing.T) {
-
-}
-
-*/
 func createAttester(name string) Attester {
 	policyModule := `
 	package default_attester
