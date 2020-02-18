@@ -16,7 +16,7 @@ type Collector interface {
 	Reconcile(ctx context.Context, name types.NamespacedName) error
 
 	// Destroy handles the deletion of resources that were created in the Reconcile function
-	Destroy(ctx context.Context) error
+	Destroy(ctx context.Context, name types.NamespacedName) error
 
 	// Type returns the type of this collector
 	Type() string

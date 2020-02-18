@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
+	"k8s.io/apimachinery/pkg/types"
 	"log"
 	"net/http"
 	"strconv"
@@ -23,26 +24,24 @@ type HarborEventCollector struct {
 	url               string
 	secret            string
 	project           string
-	namespace         string
 }
 
-func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string, project string, namespace string) Collector {
+func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string, project string) Collector {
 	return &HarborEventCollector{
-		logger:    logger,
-		url:       harborUrl,
-		secret:    secret,
-		project:   project,
-		namespace: namespace,
+		logger:  logger,
+		url:     harborUrl,
+		secret:  secret,
+		project: project,
 	}
 }
 
-func (t *HarborEventCollector) Reconcile(ctx context.Context) error {
+func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
 
 	t.logger.Info("reconciling HARBOR collector")
-	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
+	harborCreds := t.getHarborCredentials(ctx, t.secret, name.String())
 	projectID := t.getProjectID(t.project, t.url)
 	if projectID != "" && !t.checkForWebhook(projectID, t.url, harborCreds) {
-		t.createWebhook(projectID, t.url, harborCreds, "www.example.com")
+		t.createWebhook(projectID, t.url, harborCreds, "/webhook/harbor/"+name.String()+"/"+t.project)
 	}
 
 	return nil
@@ -66,14 +65,24 @@ func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interfac
 	return nil
 }
 
-func (t *HarborEventCollector) Destroy(ctx context.Context) error {
+func (t *HarborEventCollector) Destroy(ctx context.Context, name types.NamespacedName) error {
 	t.logger.Info("destroying test collector")
-	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
+	harborCreds := t.getHarborCredentials(ctx, t.secret, name.String())
 	projectID := t.getProjectID(t.project, t.url)
 	policyID := t.getWebhookPolicyID(projectID, t.url, harborCreds)
 	t.deleteWebhookPolicy(projectID, t.url, policyID, harborCreds)
 
 	return nil
+}
+
+func (t *HarborEventCollector) Type() string {
+	return "harbor_event"
+}
+
+func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator) {
+	t.logger.Info("HARBOR WEBHOOK HIT")
+
+	writer.WriteHeader(http.StatusOK)
 }
 
 func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretname string, namespace string) string {

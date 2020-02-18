@@ -60,7 +60,7 @@ func (i *ecrCollector) Reconcile(ctx context.Context, name types.NamespacedName)
 	return nil
 }
 
-func (i *ecrCollector) Destroy(ctx context.Context) error {
+func (i *ecrCollector) Destroy(ctx context.Context, name types.NamespacedName) error {
 	ses := session.Must(session.NewSession(i.awsConfig))
 
 	if i.ruleComplete {

@@ -56,7 +56,7 @@ func (t *testCollector) HandleWebhook(writer http.ResponseWriter, request *http.
 	writer.WriteHeader(http.StatusOK)
 }
 
-func (t *testCollector) Destroy(ctx context.Context) error {
+func (t *testCollector) Destroy(ctx context.Context, name types.NamespacedName) error {
 	t.logger.Info("destroying test collector")
 
 	return nil
