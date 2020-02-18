@@ -88,7 +88,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		case "ecr_event":
 			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
 		case "harbor_event":
-			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, col.Spec.Harbor.Secret, col.Spec.Harbor.Project)
+			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, col.Spec.Harbor.Secret, col.Spec.Harbor.Project, col.ObjectMeta.Namespace)
 		case "test":
 			c = collector.NewTestCollector(r.Log, "foo")
 		default:

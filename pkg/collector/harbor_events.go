@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"io/ioutil"
-	"k8s.io/apimachinery/pkg/types"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
 	"github.com/liatrio/rode/pkg/occurrence"
@@ -24,24 +25,26 @@ type HarborEventCollector struct {
 	url               string
 	secret            string
 	project           string
+	namespace         string
 }
 
-func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string, project string) Collector {
+func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string, project string, namespace string) Collector {
 	return &HarborEventCollector{
-		logger:  logger,
-		url:     harborUrl,
-		secret:  secret,
-		project: project,
+		logger:    logger,
+		url:       harborUrl,
+		secret:    secret,
+		project:   project,
+		namespace: namespace,
 	}
 }
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
 
 	t.logger.Info("reconciling HARBOR collector")
-	harborCreds := t.getHarborCredentials(ctx, t.secret, name.String())
+	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
 	projectID := t.getProjectID(t.project, t.url)
 	if projectID != "" && !t.checkForWebhook(projectID, t.url, harborCreds) {
-		t.createWebhook(projectID, t.url, harborCreds, "/webhook/harbor/"+name.String()+"/"+t.project)
+		t.createWebhook(projectID, t.url, harborCreds, "webhook/harbor/"+name.String())
 	}
 
 	return nil
@@ -67,7 +70,7 @@ func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interfac
 
 func (t *HarborEventCollector) Destroy(ctx context.Context, name types.NamespacedName) error {
 	t.logger.Info("destroying test collector")
-	harborCreds := t.getHarborCredentials(ctx, t.secret, name.String())
+	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
 	projectID := t.getProjectID(t.project, t.url)
 	policyID := t.getWebhookPolicyID(projectID, t.url, harborCreds)
 	t.deleteWebhookPolicy(projectID, t.url, policyID, harborCreds)
