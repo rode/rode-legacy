@@ -44,7 +44,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
 	projectID := t.getProjectID(t.project, t.url)
 	if projectID != "" && !t.checkForWebhook(projectID, t.url, harborCreds) {
-		t.createWebhook(projectID, t.url, harborCreds, "webhook/harbor/"+name.String())
+		t.createWebhook(projectID, t.url, harborCreds, "webhook/harbor_event/"+name.String())
 	}
 
 	return nil
@@ -112,7 +112,9 @@ func (t *HarborEventCollector) getProjectID(name string, url string) string {
 	req, err := http.NewRequest("GET", url+"/api/projects/", nil)
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Print("Error Retrieving ProjectID:")
 		log.Print(err)
+		return ""
 	}
 	defer resp.Body.Close()
 
@@ -138,7 +140,9 @@ func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, 
 	req.SetBasicAuth("admin", harborCreds)
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Print("Error Retrieving Webhook Policy ID")
 		log.Print(err)
+		return ""
 	}
 	defer resp.Body.Close()
 	policyList, err := ioutil.ReadAll(resp.Body)
@@ -158,7 +162,9 @@ func (t *HarborEventCollector) checkForWebhook(projectID string, url string, har
 	req.SetBasicAuth("admin", harborCreds)
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Print("Error Retrieving Webhook Info from Harbor")
 		log.Print(err)
+		return true
 	}
 
 	defer resp.Body.Close()
@@ -213,10 +219,12 @@ func (t *HarborEventCollector) createWebhook(projectID string, url string, harbo
 func (t *HarborEventCollector) deleteWebhookPolicy(projectID string, url string, policyID string, harborCreds string) {
 	client := &http.Client{}
 
-	webhookDeleteURL := url + "/api/projects/" + projectID + "/webhook/policies" + policyID
+	webhookDeleteURL := url + "/api/projects/" + projectID + "/webhook/policies/" + policyID
 	req, err := http.NewRequest("DELETE", webhookDeleteURL, nil)
+	req.SetBasicAuth("admin", harborCreds)
 	_, err = client.Do(req)
 	if err != nil {
+		log.Print("Error Deleting Webhook Policy")
 		log.Print(err)
 		return
 	}
