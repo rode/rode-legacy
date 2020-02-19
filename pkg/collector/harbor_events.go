@@ -56,25 +56,6 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 	return nil
 }
 
-//Can Remove This
-func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interface{}, occurrenceCreator occurrence.Creator) error {
-	go func() {
-		for range time.Tick(8 * time.Second) {
-			select {
-			case <-ctx.Done():
-				stopChan <- true
-				return
-			default:
-				t.logger.Info(t.project)
-			}
-		}
-
-		t.logger.Info("harbor collector goroutine finished")
-	}()
-
-	return nil
-}
-
 func (t *HarborEventCollector) Destroy(ctx context.Context, name types.NamespacedName) error {
 	t.logger.Info("destroying test collector")
 	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
