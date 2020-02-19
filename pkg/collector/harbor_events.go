@@ -16,6 +16,7 @@ import (
 	"github.com/go-logr/logr"
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
+	image "github.com/grafeas/grafeas/proto/v1beta1/image_go_proto"
 	packag "github.com/grafeas/grafeas/proto/v1beta1/package_go_proto"
 	vulnerability "github.com/grafeas/grafeas/proto/v1beta1/vulnerability_go_proto"
 	"github.com/liatrio/rode/pkg/occurrence"
@@ -102,13 +103,14 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 	switch payload.Type {
 	case "pushImage":
 		t.logger.Info("Implement PUSH image handler")
+		occurrences = t.newImagePushOccurrences(payload.EventData.Resources)
 	case "scanningCompleted":
 		t.logger.Info("Implement SCAN image handler")
 		occurrences = t.newImageScanOccurrences(payload.EventData.Resources)
+	default:
+		t.logger.Info(payload.Type)
 	}
-	/*
-	  t.logger.Info(payload.EventData.Resources[0].ResourceURL)
-	*/
+
 	ctx := context.Background()
 	err = occurrenceCreator.CreateOccurrences(ctx, occurrences...)
 	if err != nil {
@@ -118,6 +120,30 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 	}
 
 	writer.WriteHeader(http.StatusOK)
+}
+
+func (t *HarborEventCollector) newImagePushOccurrences(resources []*Resource) []*grafeas.Occurrence {
+	occurrences := make([]*grafeas.Occurrence, 0)
+	for i, resource := range resources {
+		baseResourceUrl := resource.ResourceURL
+		derivedImageDetails := &grafeas.Occurrence_DerivedImage{
+			DerivedImage: &image.Details{
+				DerivedImage: &image.Derived{
+					BaseResourceUrl: baseResourceUrl,
+					Fingerprint: &image.Fingerprint{
+						V1Name: "TODO",
+						V2Blob: []string{"TODO"},
+						V2Name: "TODO",
+					},
+				},
+			},
+		}
+
+		o := newHarborImageScanOccurrence(resources[i], t.project)
+		o.Details = derivedImageDetails
+		occurrences = append(occurrences, o)
+	}
+	return occurrences
 }
 
 func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []*grafeas.Occurrence {
