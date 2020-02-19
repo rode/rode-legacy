@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -13,6 +14,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
+	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
+	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
+	packag "github.com/grafeas/grafeas/proto/v1beta1/package_go_proto"
+	vulnerability "github.com/grafeas/grafeas/proto/v1beta1/vulnerability_go_proto"
 	"github.com/liatrio/rode/pkg/occurrence"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -50,6 +55,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 	return nil
 }
 
+//Can Remove This
 func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interface{}, occurrenceCreator occurrence.Creator) error {
 	go func() {
 		for range time.Tick(8 * time.Second) {
@@ -85,7 +91,131 @@ func (t *HarborEventCollector) Type() string {
 func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator) {
 	t.logger.Info("HARBOR WEBHOOK HIT")
 
+	var payload *Payload
+	body, err := ioutil.ReadAll(request.Body)
+	err = json.Unmarshal(body, &payload)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	var occurrences []*grafeas.Occurrence
+	switch payload.Type {
+	case "pushImage":
+		t.logger.Info("Implement PUSH image handler")
+	case "scanningCompleted":
+		t.logger.Info("Implement SCAN image handler")
+		occurrences = t.newImageScanOccurrences(payload.EventData.Resources)
+	}
+	/*
+	  t.logger.Info(payload.EventData.Resources[0].ResourceURL)
+	*/
+	ctx := context.Background()
+	err = occurrenceCreator.CreateOccurrences(ctx, occurrences...)
+	if err != nil {
+		t.logger.Info("Error creating Occurrence")
+		log.Fatal(err)
+		writer.WriteHeader(http.StatusInternalServerError)
+	}
+
 	writer.WriteHeader(http.StatusOK)
+}
+
+func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []*grafeas.Occurrence {
+	var tags []string
+	var vulnerabilityDetails *grafeas.Occurrence_Vulnerability
+	status := discovery.Discovered_ANALYSIS_STATUS_UNSPECIFIED
+
+	for _, resource := range resources {
+		tags = append(tags, resource.Tag)
+	}
+	occurrences := make([]*grafeas.Occurrence, 0)
+	for i, tag := range tags {
+		scanOverview := resources[i].ScanOverview["application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0"].(map[string]interface{})
+		t.logger.Info(tag)
+		t.logger.Info(scanOverview["scan_status"].(string))
+		t.logger.Info(scanOverview["severity"].(string))
+		if scanOverview["scan_status"].(string) == "Success" {
+			status = discovery.Discovered_FINISHED_SUCCESS
+			vulnerabilityDetails = t.getVulnerabilityDetails(scanOverview["severity"].(string))
+		} else if scanOverview["scan_status"].(string) == "Error" {
+			status = discovery.Discovered_FINISHED_FAILED
+		}
+
+		discoveryDetails := &grafeas.Occurrence_Discovered{
+			Discovered: &discovery.Details{
+				Discovered: &discovery.Discovered{
+					AnalysisStatus: status,
+				},
+			},
+		}
+
+		o := newHarborImageScanOccurrence(resources[i], t.project)
+		o.Details = discoveryDetails
+		occurrences = append(occurrences, o)
+
+		o = newHarborImageScanOccurrence(resources[i], t.project)
+		o.Details = vulnerabilityDetails
+		occurrences = append(occurrences, o)
+
+	}
+	return occurrences
+}
+
+func newHarborImageScanOccurrence(resource *Resource, projectName string) *grafeas.Occurrence {
+	o := &grafeas.Occurrence{
+		Resource: &grafeas.Resource{
+			Uri: HarborOccurrenceResourceURI(resource.ResourceURL, resource.Digest),
+		},
+		NoteName: HarborOccurrenceNote(projectName),
+	}
+	return o
+}
+
+func HarborOccurrenceResourceURI(url, digest string) string {
+	return fmt.Sprintf("%s@%s", url, digest)
+}
+
+func HarborOccurrenceNote(projectName string) string {
+	return fmt.Sprintf("projects/%s/notes/%s", "rode", projectName)
+}
+
+func (t *HarborEventCollector) getVulnerabilityDetails(severity string) *grafeas.Occurrence_Vulnerability {
+	vulnerabilitySeverity := t.getVulnerabilitySeverity(severity)
+	vulnerabilityDetails := &grafeas.Occurrence_Vulnerability{
+		Vulnerability: &vulnerability.Details{
+			Severity: vulnerabilitySeverity,
+			PackageIssue: []*vulnerability.PackageIssue{
+				{
+					AffectedLocation: &vulnerability.VulnerabilityLocation{
+						CpeUri:  "TODO",
+						Package: "TODO",
+						Version: &packag.Version{
+							Kind: packag.Version_NORMAL,
+							Name: "TODO",
+						},
+					},
+				},
+			},
+		},
+	}
+	return vulnerabilityDetails
+}
+
+func (t *HarborEventCollector) getVulnerabilitySeverity(v string) vulnerability.Severity {
+	switch v {
+	case HarborSeverityCritical:
+		return vulnerability.Severity_CRITICAL
+	case HarborSeverityHigh:
+		return vulnerability.Severity_HIGH
+	case HarborSeverityMedium:
+		return vulnerability.Severity_MEDIUM
+	case HarborSeverityLow:
+		return vulnerability.Severity_LOW
+	case HarborSeverityNegligible:
+		return vulnerability.Severity_MINIMAL
+	default:
+		return vulnerability.Severity_SEVERITY_UNSPECIFIED //Should None be Negligible?
+	}
 }
 
 func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretname string, namespace string) string {
@@ -251,3 +381,43 @@ type Targets struct {
 	AuthHeader     string `json:"auth_header"`
 	SkipCertVerify bool   `json:"skip_cert_verify"`
 }
+
+type Payload struct {
+	Type      string     `json:"type"`
+	OccurAt   int64      `json:"occur_at"`
+	Operator  string     `json:"operator"`
+	EventData *EventData `json:"event_data,omitempty"`
+}
+
+type EventData struct {
+	Resources  []*Resource       `json:"resources"`
+	Repository *Repository       `json:"repository"`
+	Custom     map[string]string `json:"custom_attributes,omitempty"`
+}
+
+// Resource describe infos of resource triggered notification
+type Resource struct {
+	Digest       string                 `json:"digest,omitempty"`
+	Tag          string                 `json:"tag"`
+	ResourceURL  string                 `json:"resource_url,omitempty"`
+	ScanOverview map[string]interface{} `json:"scan_overview,omitempty"`
+}
+
+// Repository info of notification event
+type Repository struct {
+	DateCreated  int64  `json:"date_created,omitempty"`
+	Name         string `json:"name"`
+	Namespace    string `json:"namespace"`
+	RepoFullName string `json:"repo_full_name"`
+	RepoType     string `json:"repo_type"`
+}
+
+const (
+	HarborSeverityCritical   = "Critical"
+	HarborSeverityHigh       = "High"
+	HarborSeverityMedium     = "Medium"
+	HarborSeverityLow        = "Low"
+	HarborSeverityNone       = "None"
+	HarborSeverityUnknown    = "Unknown"
+	HarborSeverityNegligible = "Negligible"
+)
