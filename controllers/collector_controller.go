@@ -33,7 +33,7 @@ import (
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 )
 
-// CollectorReconciler reconciles a Collector object
+// CollectorReconciler reconciles a Collector object.
 type CollectorReconciler struct {
 	client.Client
 	Log               logr.Logger
@@ -60,6 +60,7 @@ var (
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // nolint: gocyclo
+//TODO: Currently broken if start interface is not implemented. See lines 85, 157
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("collector", req.NamespacedName)

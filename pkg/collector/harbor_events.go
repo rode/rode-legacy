@@ -25,6 +25,10 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+//TODO Add Better Error Handling
+//TODO Handle Secret not existing gracefully
+//TODO Handle repo doesn't exist & private repo fail gracefully (Does not get returned in project list if private)
+
 type HarborEventCollector struct {
 	logger            logr.Logger
 	occurrenceCreator occurrence.Creator
@@ -62,7 +66,6 @@ func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interfac
 }
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
-
 	t.logger.Info("reconciling HARBOR collector")
 	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
 	projectID := t.getProjectID(t.project, t.url)
@@ -303,6 +306,7 @@ func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, 
 
 	var policies []WebhookPolicies
 	json.Unmarshal([]byte(policyList), &policies)
+	//TODO:  Handle empty policyList
 	policyID := strconv.Itoa(policies[0].ID)
 
 	return policyID
