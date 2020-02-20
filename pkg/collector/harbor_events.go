@@ -24,8 +24,6 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-//TODO General overlook of all logic
-
 type HarborEventCollector struct {
 	logger            logr.Logger
 	occurrenceCreator occurrence.Creator
@@ -46,7 +44,6 @@ func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string
 }
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
-	t.logger.Info("reconciling HARBOR collector")
 	harborCreds, err := t.getHarborCredentials(ctx, t.secret, t.namespace)
 	if err != nil {
 		return err
@@ -61,6 +58,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 		return err
 	}
 	if !webhookCheck {
+		//TODO: Retrieve hostname for rode from Ingress
 		err = t.createWebhook(projectID, t.url, harborCreds, "/webhook/harbor_event/"+name.String())
 		if err != nil {
 			return err
@@ -100,6 +98,8 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 	err = json.Unmarshal(body, &payload)
 	if err != nil {
 		log.Fatal(err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	var occurrences []*grafeas.Occurrence
@@ -120,6 +120,7 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 		t.logger.Info("Error creating Occurrence")
 		log.Fatal(err)
 		writer.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	writer.WriteHeader(http.StatusOK)
@@ -150,15 +151,11 @@ func (t *HarborEventCollector) newImagePushOccurrences(resources []*Resource) []
 }
 
 func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []*grafeas.Occurrence {
-	var tags []string
 	var vulnerabilityDetails *grafeas.Occurrence_Vulnerability
 	status := discovery.Discovered_ANALYSIS_STATUS_UNSPECIFIED
 
-	for _, resource := range resources {
-		tags = append(tags, resource.Tag)
-	}
 	occurrences := make([]*grafeas.Occurrence, 0)
-	for i := range tags {
+	for i := range resources {
 		scanOverview := resources[i].ScanOverview["application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0"].(map[string]interface{})
 		if scanOverview["scan_status"].(string) == "Success" {
 			status = discovery.Discovered_FINISHED_SUCCESS
@@ -178,10 +175,11 @@ func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []
 		o := newHarborImageScanOccurrence(resources[i], t.project)
 		o.Details = discoveryDetails
 		occurrences = append(occurrences, o)
-
-		o = newHarborImageScanOccurrence(resources[i], t.project)
-		o.Details = vulnerabilityDetails
-		occurrences = append(occurrences, o)
+		if scanOverview["scan_status"].(string) == "Success" {
+			o = newHarborImageScanOccurrence(resources[i], t.project)
+			o.Details = vulnerabilityDetails
+			occurrences = append(occurrences, o)
+		}
 
 	}
 	return occurrences
@@ -246,6 +244,7 @@ func (t *HarborEventCollector) getVulnerabilitySeverity(v string) vulnerability.
 	}
 }
 
+// Assumes Harbor admin creds are deployed in the same namespace as the Collector CR
 func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretname string, namespace string) (string, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
