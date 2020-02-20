@@ -85,3 +85,7 @@ resources:
   requests:
     cpu: 10m
     memory: 20Mi
+
+ingress:
+  enabled: true
+  hostname: rode.cluster.local

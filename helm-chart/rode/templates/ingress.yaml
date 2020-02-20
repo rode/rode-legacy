@@ -1,0 +1,25 @@
+{{- if .Values.ingress.enabled }}
+---
+apiVersion: v1
+kind: Ingress
+metadata:
+  name: {{ include "rode.fullname" . }}
+  labels:
+    app: {{ template "rode.name" . }}                                                                                                                         
+    helm.sh/chart: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  rules:
+  - host: {{ .Values.ingress.hostName }}
+    http:
+      paths:
+      - backend:
+          serviceName: {{ include "rode.fullname" . }}
+          servicePort: 8080
+        path: /
+{{- if .Values.ingress.tls }}
+  tls:
+{{ toYaml .Values.ingress.tls | indent 4 }}
+{{- end -}}
+{{- end }}
