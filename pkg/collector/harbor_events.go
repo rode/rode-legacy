@@ -25,9 +25,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-//TODO Add Better Error Handling
-//TODO Handle Secret not existing gracefully
-//TODO Handle repo doesn't exist & private repo fail gracefully (Does not get returned in project list if private)
+//TODO General overlook of all logic
 
 type HarborEventCollector struct {
 	logger            logr.Logger
@@ -67,22 +65,57 @@ func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interfac
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
 	t.logger.Info("reconciling HARBOR collector")
-	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
-	projectID := t.getProjectID(t.project, t.url)
-	if projectID != "" && !t.checkForWebhook(projectID, t.url, harborCreds) {
-		t.createWebhook(projectID, t.url, harborCreds, "webhook/harbor_event/"+name.String())
+	harborCreds, err := t.getHarborCredentials(ctx, t.secret, t.namespace)
+	if err != nil {
+		log.Print("Error Retrieving Harbor Credentials")
+		return err
 	}
 
+	projectID, err := t.getProjectID(t.project, t.url)
+	if err != nil {
+		log.Print("Error Retrieving Project ID")
+		log.Print(err)
+		return nil
+	}
+	webhookCheck, err := t.checkForWebhook(projectID, t.url, harborCreds)
+	if err != nil {
+		log.Print("Error Checking If Webhook Exists")
+		log.Print(err)
+		return nil
+	}
+	if !webhookCheck {
+		err = t.createWebhook(projectID, t.url, harborCreds, "/webhook/harbor_event/"+name.String())
+		if err != nil {
+			log.Print("Error Creating Webhook")
+			log.Print(err)
+			return nil
+		}
+	}
 	return nil
 }
 
 func (t *HarborEventCollector) Destroy(ctx context.Context) error {
 	t.logger.Info("destroying test collector")
-	harborCreds := t.getHarborCredentials(ctx, t.secret, t.namespace)
-	projectID := t.getProjectID(t.project, t.url)
-	policyID := t.getWebhookPolicyID(projectID, t.url, harborCreds)
+	harborCreds, err := t.getHarborCredentials(ctx, t.secret, t.namespace)
+	if err != nil {
+		log.Print(err)
+		return err
+	}
+	projectID, err := t.getProjectID(t.project, t.url)
+	if err != nil {
+		log.Print(err)
+		return err
+	}
+	policyID, err := t.getWebhookPolicyID(projectID, t.url, harborCreds)
+	if err != nil {
+		log.Print(err)
+		return err
+	}
 	t.deleteWebhookPolicy(projectID, t.url, policyID, harborCreds)
-
+	if err != nil {
+		log.Print(err)
+		return err
+	}
 	return nil
 }
 
@@ -91,8 +124,6 @@ func (t *HarborEventCollector) Type() string {
 }
 
 func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator) {
-	t.logger.Info("HARBOR WEBHOOK HIT")
-
 	var payload *Payload
 	body, err := ioutil.ReadAll(request.Body)
 	err = json.Unmarshal(body, &payload)
@@ -103,10 +134,10 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 	var occurrences []*grafeas.Occurrence
 	switch payload.Type {
 	case "pushImage":
-		t.logger.Info("Implement PUSH image handler")
+		t.logger.Info("Creating Image Push Occurrence")
 		occurrences = t.newImagePushOccurrences(payload.EventData.Resources)
 	case "scanningCompleted":
-		t.logger.Info("Implement SCAN image handler")
+		t.logger.Info("Creating Image Scan Occurrence")
 		occurrences = t.newImageScanOccurrences(payload.EventData.Resources)
 	default:
 		t.logger.Info(payload.Type)
@@ -156,11 +187,8 @@ func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []
 		tags = append(tags, resource.Tag)
 	}
 	occurrences := make([]*grafeas.Occurrence, 0)
-	for i, tag := range tags {
+	for i := range tags {
 		scanOverview := resources[i].ScanOverview["application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0"].(map[string]interface{})
-		t.logger.Info(tag)
-		t.logger.Info(scanOverview["scan_status"].(string))
-		t.logger.Info(scanOverview["severity"].(string))
 		if scanOverview["scan_status"].(string) == "Success" {
 			status = discovery.Discovered_FINISHED_SUCCESS
 			vulnerabilityDetails = t.getVulnerabilityDetails(scanOverview["severity"].(string))
@@ -240,104 +268,131 @@ func (t *HarborEventCollector) getVulnerabilitySeverity(v string) vulnerability.
 		return vulnerability.Severity_LOW
 	case HarborSeverityNegligible:
 		return vulnerability.Severity_MINIMAL
+	case HarborSeverityNone:
+		return vulnerability.Severity_MINIMAL
 	default:
-		return vulnerability.Severity_SEVERITY_UNSPECIFIED //Should None be Negligible?
+		return vulnerability.Severity_SEVERITY_UNSPECIFIED
 	}
 }
 
-func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretname string, namespace string) string {
-	config, configError := rest.InClusterConfig()
-	if configError != nil {
-		log.Fatal(configError)
+func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretname string, namespace string) (string, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		log.Fatal(err)
+		return "", err
 	}
-
-	clientset, clientErr := kubernetes.NewForConfig(config)
-	if clientErr != nil {
-		log.Fatal(clientErr)
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.Fatal(err)
+		return "", err
 	}
-
 	secrets, err := clientset.CoreV1().Secrets(namespace).Get(secretname, metav1.GetOptions{})
 	if err != nil {
-		panic(err.Error())
+		log.Fatal(err)
+		return "", err
 	}
-
-	return string(secrets.Data["HARBOR_ADMIN_PASSWORD"])
+	return string(secrets.Data["HARBOR_ADMIN_PASSWORD"]), nil
 }
 
-func (t *HarborEventCollector) getProjectID(name string, url string) string {
+func (t *HarborEventCollector) getProjectID(name string, url string) (string, error) {
 	client := &http.Client{}
+	var projects []Project
+	var projectID string
+
 	req, err := http.NewRequest("GET", url+"/api/projects/", nil)
+	if err != nil {
+		log.Print("Error Creating GET Request For Projects")
+		log.Fatal(err)
+		return "", err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Print("Error Retrieving ProjectID:")
-		log.Print(err)
-		return ""
+		log.Print("Error Retrieving Harbor Projects")
+		log.Fatal(err)
+		return "", err
 	}
 	defer resp.Body.Close()
 
 	projectList, err := ioutil.ReadAll(resp.Body)
-
-	var projects []Project
-
+	if err != nil {
+		log.Fatal(err)
+		return "", err
+	}
 	json.Unmarshal([]byte(projectList), &projects)
-
-	projectID := ""
 	for _, p := range projects {
 		if p.Name == name {
 			projectID = strconv.Itoa(p.ProjectID)
 		}
 	}
-	return projectID
+	return projectID, nil
 }
 
-func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, harborCreds string) string {
+func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, harborCreds string) (string, error) {
 	client := &http.Client{}
 	webhookPolicyIDURL := url + "/api/projects/" + projectID + "/webhook/policies"
+	var policies []WebhookPolicies
+
 	req, err := http.NewRequest("GET", webhookPolicyIDURL, nil)
+	if err != nil {
+		log.Print("Error Creating HTTP Request For GET Webook Policy ID")
+		log.Print(err)
+		return "", err
+	}
 	req.SetBasicAuth("admin", harborCreds)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Print("Error Retrieving Webhook Policy ID")
 		log.Print(err)
-		return ""
+		return "", err
 	}
 	defer resp.Body.Close()
+
 	policyList, err := ioutil.ReadAll(resp.Body)
-
-	var policies []WebhookPolicies
+	if err != nil {
+		log.Print("Error Reading Policy List From Body")
+		log.Print(err)
+		return "", err
+	}
 	json.Unmarshal([]byte(policyList), &policies)
-	//TODO:  Handle empty policyList
 	policyID := strconv.Itoa(policies[0].ID)
-
-	return policyID
+	return policyID, nil
 }
 
-func (t *HarborEventCollector) checkForWebhook(projectID string, url string, harborCreds string) bool {
+func (t *HarborEventCollector) checkForWebhook(projectID string, url string, harborCreds string) (bool, error) {
 	client := &http.Client{}
 	webhookURL := url + "/api/projects/" + projectID + "/webhook/policies"
+	var webhooks []string
 
 	req, err := http.NewRequest("GET", webhookURL, nil)
+	if err != nil {
+		log.Print("Error Creating HTTP Request For GET Webook")
+		log.Print(err)
+		return true, err
+	}
 	req.SetBasicAuth("admin", harborCreds)
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Print("Error Retrieving Webhook Info from Harbor")
 		log.Print(err)
-		return true
+		return true, err
 	}
-
 	defer resp.Body.Close()
 
-	var webhooks []string
 	webhookJson, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Print("Error Retrieving Webhook Info From Body")
+		log.Print(err)
+		return true, err
+	}
 	json.Unmarshal([]byte(webhookJson), &webhooks)
 
 	if len(webhooks) == 0 {
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
-func (t *HarborEventCollector) createWebhook(projectID string, url string, harborCreds string, webhookEndpoint string) {
+func (t *HarborEventCollector) createWebhook(projectID string, url string, harborCreds string, webhookEndpoint string) error {
 	client := &http.Client{}
 
 	webhookURL := url + "/api/projects/" + projectID + "/webhook/policies"
@@ -359,34 +414,43 @@ func (t *HarborEventCollector) createWebhook(projectID string, url string, harbo
 		Enabled: true,
 	}
 
-	bodyJson, err := json.Marshal(body)
-
-	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(bodyJson))
+	bodyJSON, err := json.Marshal(body)
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(bodyJSON))
+	if err != nil {
+		log.Print(err)
+		return err
+	}
 	req.SetBasicAuth("admin", harborCreds)
-
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Print(err)
-		return
+		return err
 	}
 	defer resp.Body.Close()
 
 	log.Print("Successfully created webhook.")
+	return nil
 }
 
-func (t *HarborEventCollector) deleteWebhookPolicy(projectID string, url string, policyID string, harborCreds string) {
+func (t *HarborEventCollector) deleteWebhookPolicy(projectID string, url string, policyID string, harborCreds string) error {
 	client := &http.Client{}
-
 	webhookDeleteURL := url + "/api/projects/" + projectID + "/webhook/policies/" + policyID
+
 	req, err := http.NewRequest("DELETE", webhookDeleteURL, nil)
+	if err != nil {
+		log.Print("Error Deleting Webhook Policy")
+		log.Print(err)
+		return err
+	}
 	req.SetBasicAuth("admin", harborCreds)
 	_, err = client.Do(req)
 	if err != nil {
 		log.Print("Error Deleting Webhook Policy")
 		log.Print(err)
-		return
+		return err
 	}
 	log.Print("Successfully deleted webhook.")
+	return nil
 }
 
 // Harbor structured project
