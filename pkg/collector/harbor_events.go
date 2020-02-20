@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"time"
 
 	"k8s.io/apimachinery/pkg/types"
 
@@ -46,23 +45,6 @@ func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string
 		project:   project,
 		namespace: namespace,
 	}
-}
-func (t *HarborEventCollector) Start(ctx context.Context, stopChan chan interface{}, occurrenceCreator occurrence.Creator) error {
-	go func() {
-		for range time.Tick(8 * time.Second) {
-			select {
-			case <-ctx.Done():
-				stopChan <- true
-				return
-			default:
-				t.logger.Info(t.project)
-			}
-		}
-
-		t.logger.Info("harbor collector goroutine finished")
-	}()
-
-	return nil
 }
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
