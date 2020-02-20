@@ -61,6 +61,7 @@ var (
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile runs whenever a change to a Collector is made. It attempts to match the current state of the Collector to the desired state
+// nolint: gocyclo
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
 	log := r.Log.WithValues("collector", req.NamespacedName)
