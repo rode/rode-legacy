@@ -26,7 +26,6 @@ import (
 
 type HarborEventCollector struct {
 	logger            logr.Logger
-	occurrenceCreator occurrence.Creator
 	url               string
 	secret            string
 	project           string
@@ -310,7 +309,7 @@ func (t *HarborEventCollector) getProjectID(name string, url string) (string, er
 		return "", err
 	}
 
-	err = json.Unmarshal([]byte(projectList), &projects)
+	err = json.Unmarshal(projectList, &projects)
 	if err != nil {
 		return "", err
 	}
@@ -344,7 +343,7 @@ func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, 
 		return "", err
 	}
 
-	err = json.Unmarshal([]byte(policyList), &policies)
+	err = json.Unmarshal(policyList, &policies)
 	if err != nil {
 		return "", err
 	}
@@ -374,7 +373,7 @@ func (t *HarborEventCollector) checkForWebhook(projectID string, url string, har
 		return true, err
 	}
 
-	err = json.Unmarshal([]byte(webhookJSON), &webhooks)
+	err = json.Unmarshal(webhookJSON, &webhooks)
 	if err != nil {
 		return true, err
 	}
