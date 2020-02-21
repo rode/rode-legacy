@@ -58,7 +58,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 		return err
 	}
 	if !webhookCheck {
-		//TODO: Currently retrieving ingress data with hardcoded name and namespace
+		//TODO: Assuming ingress is called rode deployed into rode namespace
 		hostName, err := t.getHostName("rode", "rode")
 		if err != nil {
 			return err
