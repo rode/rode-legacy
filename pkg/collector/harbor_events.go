@@ -25,11 +25,11 @@ import (
 )
 
 type HarborEventCollector struct {
-	logger            logr.Logger
-	url               string
-	secret            string
-	project           string
-	namespace         string
+	logger    logr.Logger
+	url       string
+	secret    string
+	project   string
+	namespace string
 }
 
 func NewHarborEventCollector(logger logr.Logger, harborURL string, secret string, project string, namespace string) Collector {
@@ -368,15 +368,18 @@ func (t *HarborEventCollector) checkForWebhook(projectID string, url string, har
 	}
 	defer resp.Body.Close()
 
-	webhookJSON, err := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return true, err
 	}
 
-	err = json.Unmarshal(webhookJSON, &webhooks)
-	if err != nil {
-		return true, err
-	}
+	_ = json.Unmarshal(body, &webhooks)
+	/*
+	  TODO : body can't be unmarshalled into a string array
+		if err != nil {
+			return true, err
+		}
+	*/
 
 	if len(webhooks) == 0 {
 		return false, nil
