@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-logr/logr"
@@ -26,7 +27,10 @@ import (
 	"github.com/liatrio/rode/pkg/collector"
 	"github.com/liatrio/rode/pkg/occurrence"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -85,10 +89,18 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		c = *collectorWorker.collector
 	} else {
 		switch col.Spec.CollectorType {
-		case "ecr_event":
+		case "ecr":
 			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
-		case "harbor_event":
-			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, col.Spec.Harbor.Secret, col.Spec.Harbor.Project, col.ObjectMeta.Namespace)
+		case "harbor":
+			secret, err := r.getHarborSecret(col.Spec.Harbor.Secret, ctx)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			ingress, err := r.getHarborIngress("rode", "rode", ctx)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, secret, col.Spec.Harbor.Project, col.ObjectMeta.Namespace, ingress)
 		case "test":
 			c = collector.NewTestCollector(r.Log, "foo")
 		default:
@@ -160,6 +172,37 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	r.Workers[req.NamespacedName.String()] = collectorWorker
 
 	return r.setCollectorActive(ctx, col, nil)
+}
+
+func (r *CollectorReconciler) getHarborSecret(harborSecret string, ctx context.Context) (*corev1.Secret, error) {
+	secret := &corev1.Secret{}
+	secretDetails := strings.Split(harborSecret, "/")
+	secretNamespace := secretDetails[0]
+	secretName := secretDetails[1]
+	secretInfo := types.NamespacedName{
+		Name:      secretName,
+		Namespace: secretNamespace,
+	}
+	err := r.Get(ctx, secretInfo, secret)
+	if err != nil {
+		return nil, err
+	}
+
+	return secret, nil
+}
+
+func (r *CollectorReconciler) getHarborIngress(ingressName string, ingressNamespace string, ctx context.Context) (*v1beta1.Ingress, error) {
+	ingress := &v1beta1.Ingress{}
+	ingressInfo := types.NamespacedName{
+		Name:      ingressName,
+		Namespace: ingressNamespace,
+	}
+	err := r.Get(ctx, ingressInfo, ingress)
+	if err != nil {
+		return nil, err
+	}
+
+	return ingress, nil
 }
 
 func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector *rodev1alpha1.Collector, ctrlError error) (ctrl.Result, error) {

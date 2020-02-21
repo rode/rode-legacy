@@ -19,6 +19,8 @@ import (
 	packag "github.com/grafeas/grafeas/proto/v1beta1/package_go_proto"
 	vulnerability "github.com/grafeas/grafeas/proto/v1beta1/vulnerability_go_proto"
 	"github.com/liatrio/rode/pkg/occurrence"
+	corev1 "k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/extensions/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -27,23 +29,25 @@ import (
 type HarborEventCollector struct {
 	logger    logr.Logger
 	url       string
-	secret    string
+	secret    *corev1.Secret
 	project   string
 	namespace string
+	hostname  *v1beta1.Ingress
 }
 
-func NewHarborEventCollector(logger logr.Logger, harborURL string, secret string, project string, namespace string) Collector {
+func NewHarborEventCollector(logger logr.Logger, harborURL string, secret *corev1.Secret, project string, namespace string, hostname string) Collector {
 	return &HarborEventCollector{
 		logger:    logger,
 		url:       harborURL,
 		secret:    secret,
 		project:   project,
 		namespace: namespace,
+		hostname:  hostname
 	}
 }
 
 func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {
-	harborCreds, err := t.getHarborCredentials(ctx, t.secret, t.namespace)
+	harborCreds, err := t.getHarborCredentials(t.secret)
 	if err != nil {
 		return err
 	}
@@ -72,7 +76,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 
 func (t *HarborEventCollector) Destroy(ctx context.Context) error {
 	t.logger.Info("destroying test collector")
-	harborCreds, err := t.getHarborCredentials(ctx, t.secret, t.namespace)
+	harborCreds, err := t.getHarborCredentials(t.secret)
 	if err != nil {
 		return err
 	}
@@ -254,39 +258,12 @@ func (t *HarborEventCollector) getVulnerabilitySeverity(v string) vulnerability.
 }
 
 // Assumes Harbor admin creds are deployed in the same namespace as the Collector CR
-func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretname string, namespace string) (string, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return "", err
-	}
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return "", err
-	}
-	secrets, err := clientset.CoreV1().Secrets(namespace).Get(secretname, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
+func (t *HarborEventCollector) getHarborCredentials(secrets *corev1.Secret) (string, error) {
 	return string(secrets.Data["HARBOR_ADMIN_PASSWORD"]), nil
 }
 
-func (t *HarborEventCollector) getHostName(ingressname string, namespace string) (string, error) {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		return "", err
-	}
-
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		return "", err
-	}
-
-	ingress, err := clientset.ExtensionsV1beta1().Ingresses(namespace).Get(ingressname, metav1.GetOptions{})
-	if err != nil {
-		return "", err
-	}
-
-	return "https://" + ingress.Spec.Rules[0].Host, nil
+func (t *HarborEventCollector) getHarborIngress(ingresses *v1beta1.Ingress) (string, error) {
+	return fmt.Sprintf("https://%s", ingresses.Spec.Rules[0].Host), nil
 }
 
 func (t *HarborEventCollector) getProjectID(name string, url string) (string, error) {
@@ -375,10 +352,10 @@ func (t *HarborEventCollector) checkForWebhook(projectID string, url string, har
 
 	_ = json.Unmarshal(body, &webhooks)
 	/*
-	  TODO : body can't be unmarshalled into a string array
-		if err != nil {
-			return true, err
-		}
+		  TODO : body can't be unmarshalled into a string array
+			if err != nil {
+				return true, err
+			}
 	*/
 
 	if len(webhooks) == 0 {
