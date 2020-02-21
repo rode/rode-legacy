@@ -58,8 +58,12 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 		return err
 	}
 	if !webhookCheck {
-		//TODO: Retrieve hostname for rode from Ingress
-		err = t.createWebhook(projectID, t.url, harborCreds, "/webhook/harbor_event/"+name.String())
+		//TODO: Currently retrieving ingress data with hardcoded name and namespace
+		hostName, err := t.getHostName("rode", "rode")
+		if err != nil {
+			return err
+		}
+		err = t.createWebhook(projectID, t.url, harborCreds, hostName+"/webhook/harbor_event/"+name.String())
 		if err != nil {
 			return err
 		}
@@ -259,6 +263,19 @@ func (t *HarborEventCollector) getHarborCredentials(ctx context.Context, secretn
 		return "", err
 	}
 	return string(secrets.Data["HARBOR_ADMIN_PASSWORD"]), nil
+}
+
+func (t *HarborEventCollector) getHostName(ingressname string, namespace string) (string, error) {
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return "", err
+	}
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return "", err
+	}
+	ingress, err := clientset.ExtensionsV1beta1().Ingresses(namespace).Get(ingressname, metav1.GetOptions{})
+	return "https://" + string(ingress.Spec.Rules[0].Host), nil
 }
 
 func (t *HarborEventCollector) getProjectID(name string, url string) (string, error) {

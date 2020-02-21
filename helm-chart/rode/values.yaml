@@ -88,4 +88,4 @@ resources:
 
 ingress:
   enabled: true
-  hostname: rode.cluster.local
+  hostName: rode.cluster.local
