@@ -2,7 +2,7 @@
 ![tag](https://github.com/liatrio/rode/workflows/tag/badge.svg)
 > \rōd\ - a line (as of rope or chain) used to attach an anchor to a boat
 
-Rode provides the collection, attestation and enforcement of policies in your software supply chain.
+Rode provides the collection, attestation and enforcement of policies in your software supply chain.  Watch the [demo](https://youtu.be/CyrbLQYUCbM?t=580) and [slides](https://www.slideshare.net/CaseyLee2/the-last-bottleneck-of-continuous-delivery/) from DeliveryConf for a quick introduction!
 
 ![](docs/overview.png)
 
