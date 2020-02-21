@@ -62,7 +62,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 		if err != nil {
 			return err
 		}
-		err = t.createWebhook(projectID, t.url, harborCreds, hostName+"/webhook/harbor/"+name.String())
+		err = t.createWebhook(projectID, t.url, harborCreds, fmt.Sprintf("%s/webhook/harbor/%s", hostName, name.String()))
 		if err != nil {
 			return err
 		}
@@ -71,7 +71,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 }
 
 func (t *HarborEventCollector) Destroy(ctx context.Context) error {
-	t.logger.Info("destroying test collector")
+	t.logger.Info("destroying collector")
 	harborCreds, err := t.getHarborCredentials(ctx, t.secret, t.namespace)
 	if err != nil {
 		return err
@@ -99,15 +99,15 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 	var payload *Payload
 	body, err := ioutil.ReadAll(request.Body)
 	if err != nil {
-		log.Fatal(err)
-		writer.WriteHeader(http.StatusInternalServerError)
+		t.logger.Error(err, "error reading request body")
+		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
 	err = json.Unmarshal(body, &payload)
 	if err != nil {
-		log.Fatal(err)
-		writer.WriteHeader(http.StatusInternalServerError)
+		t.logger.Error(err, "error unmarshaling body")
+		writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -126,8 +126,7 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 	ctx := context.Background()
 	err = occurrenceCreator.CreateOccurrences(ctx, occurrences...)
 	if err != nil {
-		t.logger.Info("Error creating Occurrence")
-		log.Fatal(err)
+		t.logger.Error(err, "error creating occurrence")
 		writer.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -164,8 +163,9 @@ func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []
 	status := discovery.Discovered_ANALYSIS_STATUS_UNSPECIFIED
 
 	occurrences := make([]*grafeas.Occurrence, 0)
+	const scanReport = "application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0"
 	for i := range resources {
-		scanOverview := resources[i].ScanOverview["application/vnd.scanner.adapter.vuln.report.harbor+json; version=1.0"].(map[string]interface{})
+		scanOverview := resources[i].ScanOverview[scanReport].(map[string]interface{})
 		if scanOverview["scan_status"].(string) == "Success" {
 			status = discovery.Discovered_FINISHED_SUCCESS
 			vulnerabilityDetails = t.getVulnerabilityDetails(scanOverview["severity"].(string))
