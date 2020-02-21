@@ -33,10 +33,10 @@ type HarborEventCollector struct {
 	namespace         string
 }
 
-func NewHarborEventCollector(logger logr.Logger, harborUrl string, secret string, project string, namespace string) Collector {
+func NewHarborEventCollector(logger logr.Logger, harborURL string, secret string, project string, namespace string) Collector {
 	return &HarborEventCollector{
 		logger:    logger,
-		url:       harborUrl,
+		url:       harborURL,
 		secret:    secret,
 		project:   project,
 		namespace: namespace,
@@ -85,7 +85,7 @@ func (t *HarborEventCollector) Destroy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	t.deleteWebhookPolicy(projectID, t.url, policyID, harborCreds)
+	err = t.deleteWebhookPolicy(projectID, t.url, policyID, harborCreds)
 	if err != nil {
 		return err
 	}
@@ -99,6 +99,12 @@ func (t *HarborEventCollector) Type() string {
 func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator) {
 	var payload *Payload
 	body, err := ioutil.ReadAll(request.Body)
+	if err != nil {
+		log.Fatal(err)
+		writer.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
 	err = json.Unmarshal(body, &payload)
 	if err != nil {
 		log.Fatal(err)
@@ -133,11 +139,11 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 func (t *HarborEventCollector) newImagePushOccurrences(resources []*Resource) []*grafeas.Occurrence {
 	occurrences := make([]*grafeas.Occurrence, 0)
 	for i, resource := range resources {
-		baseResourceUrl := resource.ResourceURL
+		baseResourceURL := resource.ResourceURL
 		derivedImageDetails := &grafeas.Occurrence_DerivedImage{
 			DerivedImage: &image.Details{
 				DerivedImage: &image.Derived{
-					BaseResourceUrl: baseResourceUrl,
+					BaseResourceUrl: baseResourceURL,
 					Fingerprint: &image.Fingerprint{
 						V1Name: "TODO",
 						V2Blob: []string{"TODO"},
@@ -270,12 +276,18 @@ func (t *HarborEventCollector) getHostName(ingressname string, namespace string)
 	if err != nil {
 		return "", err
 	}
+
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
 		return "", err
 	}
+
 	ingress, err := clientset.ExtensionsV1beta1().Ingresses(namespace).Get(ingressname, metav1.GetOptions{})
-	return "https://" + string(ingress.Spec.Rules[0].Host), nil
+	if err != nil {
+		return "", err
+	}
+
+	return "https://" + ingress.Spec.Rules[0].Host, nil
 }
 
 func (t *HarborEventCollector) getProjectID(name string, url string) (string, error) {
@@ -297,7 +309,12 @@ func (t *HarborEventCollector) getProjectID(name string, url string) (string, er
 	if err != nil {
 		return "", err
 	}
-	json.Unmarshal([]byte(projectList), &projects)
+
+	err = json.Unmarshal([]byte(projectList), &projects)
+	if err != nil {
+		return "", err
+	}
+
 	for _, p := range projects {
 		if p.Name == name {
 			projectID = strconv.Itoa(p.ProjectID)
@@ -326,7 +343,12 @@ func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, 
 	if err != nil {
 		return "", err
 	}
-	json.Unmarshal([]byte(policyList), &policies)
+
+	err = json.Unmarshal([]byte(policyList), &policies)
+	if err != nil {
+		return "", err
+	}
+
 	policyID := strconv.Itoa(policies[0].ID)
 	return policyID, nil
 }
@@ -347,11 +369,15 @@ func (t *HarborEventCollector) checkForWebhook(projectID string, url string, har
 	}
 	defer resp.Body.Close()
 
-	webhookJson, err := ioutil.ReadAll(resp.Body)
+	webhookJSON, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return true, err
 	}
-	json.Unmarshal([]byte(webhookJson), &webhooks)
+
+	err = json.Unmarshal([]byte(webhookJSON), &webhooks)
+	if err != nil {
+		return true, err
+	}
 
 	if len(webhooks) == 0 {
 		return false, nil
@@ -382,6 +408,10 @@ func (t *HarborEventCollector) createWebhook(projectID string, url string, harbo
 	}
 
 	bodyJSON, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
 	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(bodyJSON))
 	if err != nil {
 		return err
