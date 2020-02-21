@@ -62,7 +62,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 		if err != nil {
 			return err
 		}
-		err = t.createWebhook(projectID, t.url, harborCreds, hostName+"/webhook/harbor_event/"+name.String())
+		err = t.createWebhook(projectID, t.url, harborCreds, hostName+"/webhook/harbor/"+name.String())
 		if err != nil {
 			return err
 		}
@@ -92,7 +92,7 @@ func (t *HarborEventCollector) Destroy(ctx context.Context) error {
 }
 
 func (t *HarborEventCollector) Type() string {
-	return "harbor_event"
+	return "harbor"
 }
 
 func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator) {
@@ -375,10 +375,10 @@ func (t *HarborEventCollector) checkForWebhook(projectID string, url string, har
 
 	_ = json.Unmarshal(body, &webhooks)
 	/*
-	  TODO : body can't be unmarshalled into a string array
-		if err != nil {
-			return true, err
-		}
+		  TODO : body can't be unmarshalled into a string array
+			if err != nil {
+				return true, err
+			}
 	*/
 
 	if len(webhooks) == 0 {

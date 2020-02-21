@@ -23,7 +23,7 @@ apiVersion: rode.liatr.io/v1alpha1
 kind: Collector
 spec:
   name: my_collector
-  type: ecr_event
+  type: ecr
   queueName: my_ecr_event_queue
 ```
 

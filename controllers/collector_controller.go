@@ -85,9 +85,9 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		c = *collectorWorker.collector
 	} else {
 		switch col.Spec.CollectorType {
-		case "ecr_event":
+		case "ecr":
 			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
-		case "harbor_event":
+		case "harbor":
 			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, col.Spec.Harbor.Secret, col.Spec.Harbor.Project, col.ObjectMeta.Namespace)
 		case "test":
 			c = collector.NewTestCollector(r.Log, "foo")
@@ -113,7 +113,13 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 		delete(r.WebhookHandlers, webhookHandlerPath(c, req))
 
-		err := c.Destroy(collectorWorker.context)
+		var err error
+		if collectorWorker.context != nil {
+			err = c.Destroy(collectorWorker.context)
+		} else {
+			err = c.Destroy(ctx)
+		}
+
 		if err != nil {
 			return r.setCollectorActive(ctx, col, err)
 		}
@@ -136,25 +142,30 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return r.setCollectorActive(ctx, col, nil)
 	}
 
-	workerContext, cancel := context.WithCancel(ctx)
-	collectorWorker = &CollectorWorker{
-		context:   workerContext,
-		collector: &c,
-		stopChan:  make(chan interface{}),
-		done:      cancel,
-	}
-
 	if webhookCollector, ok := c.(collector.WebhookCollector); ok {
 		r.WebhookHandlers[webhookHandlerPath(c, req)] = webhookCollector.HandleWebhook
+		collectorWorker = &CollectorWorker{
+			context:   nil,
+			collector: &c,
+			stopChan:  nil,
+			done:      nil,
+		}
 	}
 
 	if startableCollector, ok := c.(collector.StartableCollector); ok {
+		workerContext, cancel := context.WithCancel(ctx)
+		collectorWorker = &CollectorWorker{
+			context:   workerContext,
+			collector: &c,
+			stopChan:  make(chan interface{}),
+			done:      cancel,
+		}
+
 		err = startableCollector.Start(collectorWorker.context, collectorWorker.stopChan, r.OccurrenceCreator)
 		if err != nil {
 			log.Error(err, "error starting collector")
 			return r.setCollectorActive(ctx, col, err)
 		}
-
 	}
 
 	r.Workers[req.NamespacedName.String()] = collectorWorker

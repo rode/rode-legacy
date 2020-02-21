@@ -55,7 +55,7 @@ var _ = Context("collector controller", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: rodev1alpha1.CollectorSpec{
-					CollectorType: "ecr_event",
+					CollectorType: "ecr",
 					ECR: rodev1alpha1.CollectorECRConfig{
 						QueueName: ecrCollectorQueueName,
 					},

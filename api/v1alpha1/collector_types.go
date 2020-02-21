@@ -34,9 +34,9 @@ type CollectorHarborConfig struct {
 
 // CollectorSpec defines the desired state of Collector
 type CollectorSpec struct {
-	// Type defines the type of collector that this is. Supported values are ecr_event, test
+	// Type defines the type of collector that this is. Supported values are ecr, harbor, test
 	CollectorType string `json:"type"`
-	// Defines configuration for collectors of the ecr_event type.
+	// Defines configuration for collectors of the ecr type.
 	// +optional
 	ECR    CollectorECRConfig    `json:"ecr,omitempty"`
 	Harbor CollectorHarborConfig `json:"harbor,omitempty"`
