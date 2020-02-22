@@ -21,9 +21,6 @@ import (
 	"github.com/liatrio/rode/pkg/occurrence"
 	corev1 "k8s.io/api/core/v1"
 	v1beta1 "k8s.io/api/extensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 type HarborEventCollector struct {
@@ -35,14 +32,14 @@ type HarborEventCollector struct {
 	hostname  *v1beta1.Ingress
 }
 
-func NewHarborEventCollector(logger logr.Logger, harborURL string, secret *corev1.Secret, project string, namespace string, hostname string) Collector {
+func NewHarborEventCollector(logger logr.Logger, harborURL string, secret *corev1.Secret, project string, namespace string, hostname *v1beta1.Ingress) Collector {
 	return &HarborEventCollector{
 		logger:    logger,
 		url:       harborURL,
 		secret:    secret,
 		project:   project,
 		namespace: namespace,
-		hostname:  hostname
+		hostname:  hostname,
 	}
 }
 
@@ -62,11 +59,12 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 	}
 	if !webhookCheck {
 		//TODO: Assuming ingress is called rode deployed into rode namespace
-		hostName, err := t.getHostName("rode", "rode")
+		hostName, err := t.getHarborIngress(t.hostname)
 		if err != nil {
 			return err
 		}
-		err = t.createWebhook(projectID, t.url, harborCreds, hostName+"/webhook/harbor_event/"+name.String())
+		webhookURL := fmt.Sprintf("%s/webhook/harbor_event/%s", hostName, name.String())
+		err = t.createWebhook(projectID, t.url, harborCreds, webhookURL)
 		if err != nil {
 			return err
 		}
@@ -96,11 +94,11 @@ func (t *HarborEventCollector) Destroy(ctx context.Context) error {
 }
 
 func (t *HarborEventCollector) Type() string {
-	return "harbor_event"
+	return "harbor"
 }
 
 func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator) {
-	var payload *Payload
+	var payload *payload
 	body, err := ioutil.ReadAll(request.Body)
 	if err != nil {
 		log.Fatal(err)
@@ -139,7 +137,7 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 	writer.WriteHeader(http.StatusOK)
 }
 
-func (t *HarborEventCollector) newImagePushOccurrences(resources []*Resource) []*grafeas.Occurrence {
+func (t *HarborEventCollector) newImagePushOccurrences(resources []*imageResource) []*grafeas.Occurrence {
 	occurrences := make([]*grafeas.Occurrence, 0)
 	for i, resource := range resources {
 		baseResourceURL := resource.ResourceURL
@@ -163,7 +161,7 @@ func (t *HarborEventCollector) newImagePushOccurrences(resources []*Resource) []
 	return occurrences
 }
 
-func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []*grafeas.Occurrence {
+func (t *HarborEventCollector) newImageScanOccurrences(resources []*imageResource) []*grafeas.Occurrence {
 	var vulnerabilityDetails *grafeas.Occurrence_Vulnerability
 	status := discovery.Discovered_ANALYSIS_STATUS_UNSPECIFIED
 
@@ -198,21 +196,21 @@ func (t *HarborEventCollector) newImageScanOccurrences(resources []*Resource) []
 	return occurrences
 }
 
-func newHarborImageScanOccurrence(resource *Resource, projectName string) *grafeas.Occurrence {
+func newHarborImageScanOccurrence(resource *imageResource, projectName string) *grafeas.Occurrence {
 	o := &grafeas.Occurrence{
 		Resource: &grafeas.Resource{
-			Uri: HarborOccurrenceResourceURI(resource.ResourceURL, resource.Digest),
+			Uri: harborOccurrenceResourceURI(resource.ResourceURL, resource.Digest),
 		},
-		NoteName: HarborOccurrenceNote(projectName),
+		NoteName: harborOccurrenceNote(projectName),
 	}
 	return o
 }
 
-func HarborOccurrenceResourceURI(url, digest string) string {
+func harborOccurrenceResourceURI(url, digest string) string {
 	return fmt.Sprintf("%s@%s", url, digest)
 }
 
-func HarborOccurrenceNote(projectName string) string {
+func harborOccurrenceNote(projectName string) string {
 	return fmt.Sprintf("projects/%s/notes/%s", "rode", projectName)
 }
 
@@ -268,10 +266,11 @@ func (t *HarborEventCollector) getHarborIngress(ingresses *v1beta1.Ingress) (str
 
 func (t *HarborEventCollector) getProjectID(name string, url string) (string, error) {
 	client := &http.Client{}
-	var projects []Project
+	var projects []project
 	var projectID string
+	projectEndpointAPI := fmt.Sprintf("%s/api/projects/", url)
 
-	req, err := http.NewRequest("GET", url+"/api/projects/", nil)
+	req, err := http.NewRequest("GET", projectEndpointAPI, nil)
 	if err != nil {
 		return "", err
 	}
@@ -299,12 +298,16 @@ func (t *HarborEventCollector) getProjectID(name string, url string) (string, er
 	return projectID, nil
 }
 
+func webhookPoliciesEndpoint(url string, projectID string) string {
+	return fmt.Sprintf("%s/api/projects/%s/webhook/policies", url, projectID)
+}
+
 func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, harborCreds string) (string, error) {
 	client := &http.Client{}
-	webhookPolicyIDURL := url + "/api/projects/" + projectID + "/webhook/policies"
-	var policies []WebhookPolicies
+	webhookURL := webhookPoliciesEndpoint(url, projectID)
+	var policies []webhookPolicies
 
-	req, err := http.NewRequest("GET", webhookPolicyIDURL, nil)
+	req, err := http.NewRequest("GET", webhookURL, nil)
 	if err != nil {
 		return "", err
 	}
@@ -331,7 +334,7 @@ func (t *HarborEventCollector) getWebhookPolicyID(projectID string, url string, 
 
 func (t *HarborEventCollector) checkForWebhook(projectID string, url string, harborCreds string) (bool, error) {
 	client := &http.Client{}
-	webhookURL := url + "/api/projects/" + projectID + "/webhook/policies"
+	webhookURL := webhookPoliciesEndpoint(url, projectID)
 	var webhooks []string
 
 	req, err := http.NewRequest("GET", webhookURL, nil)
@@ -366,18 +369,17 @@ func (t *HarborEventCollector) checkForWebhook(projectID string, url string, har
 
 func (t *HarborEventCollector) createWebhook(projectID string, url string, harborCreds string, webhookEndpoint string) error {
 	client := &http.Client{}
-
-	webhookURL := url + "/api/projects/" + projectID + "/webhook/policies"
-	targets := []Targets{
-		Targets{
+	webhookURL := webhookPoliciesEndpoint(url, projectID)
+	webhooks := []targets{
+		targets{
 			Type:           "http",
 			Address:        webhookEndpoint,
 			AuthHeader:     "auth_header",
 			SkipCertVerify: true,
 		},
 	}
-	body := &WebhookPolicies{
-		Targets: targets,
+	body := &webhookPolicies{
+		Targets: webhooks,
 		EventTypes: []string{
 			"pushImage",
 			"scanningFailed",
@@ -408,7 +410,7 @@ func (t *HarborEventCollector) createWebhook(projectID string, url string, harbo
 
 func (t *HarborEventCollector) deleteWebhookPolicy(projectID string, url string, policyID string, harborCreds string) error {
 	client := &http.Client{}
-	webhookDeleteURL := url + "/api/projects/" + projectID + "/webhook/policies/" + policyID
+	webhookDeleteURL := fmt.Sprintf("%s/api/projects/%s/webhook/policies/%s", url, projectID, policyID)
 
 	req, err := http.NewRequest("DELETE", webhookDeleteURL, nil)
 	if err != nil {
@@ -424,54 +426,44 @@ func (t *HarborEventCollector) deleteWebhookPolicy(projectID string, url string,
 }
 
 // Harbor structured project
-type Project struct {
+type project struct {
 	ProjectID int    `json:"project_id"`
 	Name      string `json:"name"`
 }
 
 // Harbor structured project
-type WebhookPolicies struct {
-	Targets    []Targets `json:"targets,omitempty"`
+type webhookPolicies struct {
+	Targets    []targets `json:"targets,omitempty"`
 	EventTypes []string  `json:"event_types,omitempty"`
 	Enabled    bool      `json:"enabled,omitempty"`
 	ID         int       `json:"id,omitempty"`
 }
 
-type Targets struct {
+type targets struct {
 	Type           string `json:"type"`
 	Address        string `json:"address"`
 	AuthHeader     string `json:"auth_header"`
 	SkipCertVerify bool   `json:"skip_cert_verify"`
 }
 
-type Payload struct {
+type payload struct {
 	Type      string     `json:"type"`
 	OccurAt   int64      `json:"occur_at"`
 	Operator  string     `json:"operator"`
-	EventData *EventData `json:"event_data,omitempty"`
+	EventData *eventData `json:"event_data,omitempty"`
 }
 
-type EventData struct {
-	Resources  []*Resource       `json:"resources"`
-	Repository *Repository       `json:"repository"`
-	Custom     map[string]string `json:"custom_attributes,omitempty"`
+type eventData struct {
+	Resources []*imageResource  `json:"resources"`
+	Custom    map[string]string `json:"custom_attributes,omitempty"`
 }
 
 // Resource describe infos of resource triggered notification
-type Resource struct {
+type imageResource struct {
 	Digest       string                 `json:"digest,omitempty"`
 	Tag          string                 `json:"tag"`
 	ResourceURL  string                 `json:"resource_url,omitempty"`
 	ScanOverview map[string]interface{} `json:"scan_overview,omitempty"`
-}
-
-// Repository info of notification event
-type Repository struct {
-	DateCreated  int64  `json:"date_created,omitempty"`
-	Name         string `json:"name"`
-	Namespace    string `json:"namespace"`
-	RepoFullName string `json:"repo_full_name"`
-	RepoType     string `json:"repo_type"`
 }
 
 const (
