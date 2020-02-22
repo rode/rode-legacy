@@ -47,7 +47,7 @@ spec:
           description: CollectorSpec defines the desired state of Collector
           properties:
             ecr:
-              description: Defines configuration for collectors of the ecr_event type.
+              description: Defines configuration for collectors of the ecr type.
               properties:
                 queueName:
                   description: Denotes the name of the AWS SQS queue to collect events
@@ -67,7 +67,7 @@ spec:
               type: object
             type:
               description: Type defines the type of collector that this is. Supported
-                values are ecr_event, test
+                values are ecr, harbor, test
               type: string
           required:
           - type
