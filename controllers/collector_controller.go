@@ -92,11 +92,11 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		case "ecr":
 			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
 		case "harbor":
-			secret, err := r.getHarborSecret(col.Spec.Harbor.Secret, ctx)
+			secret, err := r.getHarborSecret(ctx, col.Spec.Harbor.Secret)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
-			ingress, err := r.getHarborIngress("rode", "rode", ctx)
+			ingress, err := r.getHarborIngress(ctx, "rode", "rode")
 			if err != nil {
 				log.Info("Ingress doesn't exist or isn't properly configured; proceeding without ingress data")
 				ingress = &v1beta1.Ingress{}
