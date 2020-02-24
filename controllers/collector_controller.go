@@ -186,7 +186,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return r.setCollectorActive(ctx, col, nil)
 }
 
-func (r *CollectorReconciler) getHarborSecret(harborSecret string, ctx context.Context) (*corev1.Secret, error) {
+func (r *CollectorReconciler) getHarborSecret(ctx context.Context, harborSecret string) (*corev1.Secret, error) {
 	secret := &corev1.Secret{}
 	secretDetails := strings.Split(harborSecret, "/")
 	secretNamespace := secretDetails[0]
@@ -203,7 +203,7 @@ func (r *CollectorReconciler) getHarborSecret(harborSecret string, ctx context.C
 	return secret, nil
 }
 
-func (r *CollectorReconciler) getHarborIngress(ingressName string, ingressNamespace string, ctx context.Context) (*v1beta1.Ingress, error) {
+func (r *CollectorReconciler) getHarborIngress(ctx context.Context, ingressName string, ingressNamespace string) (*v1beta1.Ingress, error) {
 	ingress := &v1beta1.Ingress{}
 	ingressInfo := types.NamespacedName{
 		Name:      ingressName,

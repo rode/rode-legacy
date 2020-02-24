@@ -272,9 +272,9 @@ func (t *HarborEventCollector) getHarborCredentials(secrets *corev1.Secret) (str
 func (t *HarborEventCollector) getHarborIngress(ingresses *v1beta1.Ingress) (string, error) {
 	if len(ingresses.Spec.Rules) != 0 {
 		return fmt.Sprintf("https://%s", ingresses.Spec.Rules[0].Host), nil
-	} else {
-		return "", nil
 	}
+
+	return "", nil
 }
 
 func (t *HarborEventCollector) getProjectID(name string, url string) (string, error) {
