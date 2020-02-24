@@ -63,7 +63,7 @@ func (t *HarborEventCollector) Reconcile(ctx context.Context, name types.Namespa
 		if err != nil {
 			return err
 		}
-		webhookURL := fmt.Sprintf("%s/webhook/harbor_event/%s", hostName, name.String())
+		webhookURL := fmt.Sprintf("%s/webhook/harbor/%s", hostName, name.String())
 		err = t.createWebhook(projectID, t.url, harborCreds, webhookURL)
 		if err != nil {
 			return err
@@ -106,6 +106,7 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 		return
 	}
 
+	//TODO: Handle 'test endpoint' requests gracefully. Currently if a request is received that does not contain harbor event data, rode errors out
 	err = json.Unmarshal(body, &payload)
 	if err != nil {
 		t.logger.Error(err, "error unmarshaling body")
@@ -161,7 +162,6 @@ func (t *HarborEventCollector) newImagePushOccurrences(resources []*imageResourc
 }
 
 func (t *HarborEventCollector) newImageScanOccurrences(resources []*imageResource) []*grafeas.Occurrence {
-	var vulnerabilityDetails *grafeas.Occurrence_Vulnerability
 	status := discovery.Discovered_ANALYSIS_STATUS_UNSPECIFIED
 
 	occurrences := make([]*grafeas.Occurrence, 0)
@@ -170,7 +170,6 @@ func (t *HarborEventCollector) newImageScanOccurrences(resources []*imageResourc
 		scanOverview := resources[i].ScanOverview[scanReport].(map[string]interface{})
 		if scanOverview["scan_status"].(string) == "Success" {
 			status = discovery.Discovered_FINISHED_SUCCESS
-			vulnerabilityDetails = t.getVulnerabilityDetails(scanOverview["severity"].(string))
 		} else if scanOverview["scan_status"].(string) == "Error" {
 			status = discovery.Discovered_FINISHED_FAILED
 		}
@@ -187,13 +186,24 @@ func (t *HarborEventCollector) newImageScanOccurrences(resources []*imageResourc
 		o.Details = discoveryDetails
 		occurrences = append(occurrences, o)
 		if scanOverview["scan_status"].(string) == "Success" {
-			o = newHarborImageScanOccurrence(resources[i], t.project)
-			o.Details = vulnerabilityDetails
-			occurrences = append(occurrences, o)
+			vulnerabilitySummary := scanOverview["summary"].(map[string]interface{})
+			if int(vulnerabilitySummary["total"].(float64)) > 0 {
+				vulnerabilityCountSummary := vulnerabilitySummary["summary"].(map[string]interface{})
+				for severity, count := range vulnerabilityCountSummary {
+					t.createVulnerabilityOccurrences(severity, int(count.(float64)), resources[i], &occurrences)
+				}
+			}
 		}
-
 	}
 	return occurrences
+}
+
+func (t *HarborEventCollector) createVulnerabilityOccurrences(severity string, count int, resource *imageResource, occurrences *[]*grafeas.Occurrence) {
+	for i := 1; i <= count; i++ {
+		o := newHarborImageScanOccurrence(resource, t.project)
+		o.Details = getHarborVulnerabilityDetails(severity)
+		*occurrences = append(*occurrences, o)
+	}
 }
 
 func newHarborImageScanOccurrence(resource *imageResource, projectName string) *grafeas.Occurrence {
@@ -214,8 +224,8 @@ func harborOccurrenceNote(projectName string) string {
 	return fmt.Sprintf("projects/%s/notes/%s", "rode", projectName)
 }
 
-func (t *HarborEventCollector) getVulnerabilityDetails(severity string) *grafeas.Occurrence_Vulnerability {
-	vulnerabilitySeverity := t.getVulnerabilitySeverity(severity)
+func getHarborVulnerabilityDetails(severity string) *grafeas.Occurrence_Vulnerability {
+	vulnerabilitySeverity := getHarborVulnerabilitySeverity(severity)
 	vulnerabilityDetails := &grafeas.Occurrence_Vulnerability{
 		Vulnerability: &vulnerability.Details{
 			Severity: vulnerabilitySeverity,
@@ -236,7 +246,7 @@ func (t *HarborEventCollector) getVulnerabilityDetails(severity string) *grafeas
 	return vulnerabilityDetails
 }
 
-func (t *HarborEventCollector) getVulnerabilitySeverity(v string) vulnerability.Severity {
+func getHarborVulnerabilitySeverity(v string) vulnerability.Severity {
 	switch v {
 	case HarborSeverityCritical:
 		return vulnerability.Severity_CRITICAL
@@ -255,13 +265,16 @@ func (t *HarborEventCollector) getVulnerabilitySeverity(v string) vulnerability.
 	}
 }
 
-// Assumes Harbor admin creds are deployed in the same namespace as the Collector CR
 func (t *HarborEventCollector) getHarborCredentials(secrets *corev1.Secret) (string, error) {
 	return string(secrets.Data["HARBOR_ADMIN_PASSWORD"]), nil
 }
 
 func (t *HarborEventCollector) getHarborIngress(ingresses *v1beta1.Ingress) (string, error) {
-	return fmt.Sprintf("https://%s", ingresses.Spec.Rules[0].Host), nil
+	if len(ingresses.Spec.Rules) != 0 {
+		return fmt.Sprintf("https://%s", ingresses.Spec.Rules[0].Host), nil
+	} else {
+		return "", nil
+	}
 }
 
 func (t *HarborEventCollector) getProjectID(name string, url string) (string, error) {

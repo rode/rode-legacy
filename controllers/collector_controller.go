@@ -98,7 +98,8 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 			ingress, err := r.getHarborIngress("rode", "rode", ctx)
 			if err != nil {
-				return ctrl.Result{}, err
+				log.Info("Ingress doesn't exist or isn't properly configured; proceeding without ingress data")
+				ingress = &v1beta1.Ingress{}
 			}
 			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, secret, col.Spec.Harbor.Project, col.ObjectMeta.Namespace, ingress)
 		case "test":
