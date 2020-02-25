@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -106,9 +105,12 @@ func (t *HarborEventCollector) HandleWebhook(writer http.ResponseWriter, request
 		return
 	}
 
-	//TODO: Handle 'test endpoint' requests gracefully. Currently if a request is received that does not contain harbor event data, rode errors out
 	err = json.Unmarshal(body, &payload)
-	if err != nil {
+	// if case is for just test endpoints
+	if payload == nil {
+		writer.WriteHeader(http.StatusOK)
+		return
+	} else if err != nil {
 		t.logger.Error(err, "error unmarshaling body")
 		writer.WriteHeader(http.StatusBadRequest)
 		return
@@ -417,7 +419,7 @@ func (t *HarborEventCollector) createWebhook(projectID string, url string, harbo
 	}
 	defer resp.Body.Close()
 
-	log.Print("Successfully created webhook.")
+	t.logger.Info("Successfully created webhook.")
 	return nil
 }
 
@@ -434,7 +436,7 @@ func (t *HarborEventCollector) deleteWebhookPolicy(projectID string, url string,
 	if err != nil {
 		return err
 	}
-	log.Print("Successfully deleted webhook.")
+	t.logger.Info("Successfully deleted webhook.")
 	return nil
 }
 
