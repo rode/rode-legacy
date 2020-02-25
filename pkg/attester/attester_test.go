@@ -144,6 +144,7 @@ func TestAttester_VerifyBadKey(t *testing.T) {
 	}
 
 	res, err := att.Attest(ctx, attestRequest)
+	assert.NoError(err)
 
 	newAttester := createAttester(attesterName, policyModule, false)
 	req := &VerifyRequest{res.Attestation}
@@ -184,6 +185,7 @@ func TestAttester_VerifyValid(t *testing.T) {
 	}
 
 	res, err := att.Attest(ctx, attestRequest)
+	assert.NoError(err)
 
 	req := &VerifyRequest{res.Attestation}
 
@@ -227,6 +229,9 @@ func (s *FakeSigner) KeyID() string {
 }
 
 func (s *FakeSigner) Serialize(out io.Writer) error {
-	out.Write([]byte(s.name))
+	err := out.Write([]byte(s.name))
+	if err != nil {
+		return fmt.Errorf("failed to do nothing")
+	}
 	return fmt.Errorf("invalid signer")
 }
