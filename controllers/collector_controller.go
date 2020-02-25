@@ -44,6 +44,7 @@ type CollectorReconciler struct {
 	WebhookHandlers   map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator)
 }
 
+// CollectorWorker does the work for a Collector object
 type CollectorWorker struct {
 	context   context.Context
 	collector *collector.Collector
@@ -59,6 +60,7 @@ var (
 // +kubebuilder:rbac:groups=rode.liatr.io,resources=collectors/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 
+// Reconcile runs whenever a change to a Collector is made. It attempts to match the current state of the Collector to the desired state
 // nolint: gocyclo
 func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	ctx := context.Background()
@@ -193,6 +195,7 @@ func webhookHandlerPath(c collector.Collector, req ctrl.Request) string {
 	return fmt.Sprintf("webhook/%s/%s/%s", c.Type(), req.Namespace, req.Name)
 }
 
+// SetupWithManager sets up the watching of Collector objects and filters out the events we don't want to watch
 func (r *CollectorReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rodev1alpha1.Collector{}).

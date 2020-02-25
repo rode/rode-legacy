@@ -9,6 +9,7 @@ import (
 	"github.com/liatrio/rode/pkg/occurrence"
 )
 
+// Lister is an interface for listing Attesters
 type Lister interface {
 	ListAttesters() map[string]Attester
 }

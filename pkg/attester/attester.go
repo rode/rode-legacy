@@ -48,6 +48,7 @@ type AttestResponse struct {
 	Attestation *grafeas.Occurrence
 }
 
+// ViolationError is a slice of Violations
 type ViolationError struct {
 	Violations []*Violation
 }
@@ -60,6 +61,8 @@ func (a *attester) String() string {
 	return a.name
 }
 
+// Attest takes a list of Occurrences and uses the Attester's policy to determine how many violations have occurred,
+// if there are no violations then the function will then create an Attestation Occurrence, sign it, and then return it.
 func (a *attester) Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error) {
 	// prepare the input
 	input := new(occurrenceInput)
