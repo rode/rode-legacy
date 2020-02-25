@@ -229,7 +229,7 @@ func (s *FakeSigner) KeyID() string {
 }
 
 func (s *FakeSigner) Serialize(out io.Writer) error {
-	err := out.Write([]byte(s.name))
+	_, err := out.Write([]byte(s.name))
 	if err != nil {
 		return fmt.Errorf("failed to do nothing")
 	}
