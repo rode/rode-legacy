@@ -212,9 +212,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		err = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue)
-        if err != nil {
-            log.Error(err, "Unable to update Attester's secret status to true")
-        }
+		if err != nil {
+			log.Error(err, "Unable to update Attester's secret status to true")
+		}
 	}
 
 	// Create the attester if it doesn't already exist, otherwise update it
