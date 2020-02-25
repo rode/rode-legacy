@@ -28,7 +28,8 @@ func TestAttester_AttestBadSigner(t *testing.T) {
 		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
 	}
 	`
-	att := createAttester(attesterName, policyModule, true)
+	att, err := createAttester(attesterName, policyModule, true)
+	assert.NoError(err)
 
 	attestRequest := &AttestRequest{
 		ResourceURI: attesterName,
@@ -49,7 +50,7 @@ func TestAttester_AttestBadSigner(t *testing.T) {
 		},
 	}
 
-	_, err := att.Attest(ctx, attestRequest)
+	_, err = att.Attest(ctx, attestRequest)
 	assert.Error(err)
 }
 
@@ -64,7 +65,8 @@ func TestAttester_AttestValid(t *testing.T) {
 		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
 	}
 	`
-	att := createAttester(attesterName, policyModule, false)
+	att, err := createAttester(attesterName, policyModule, false)
+	assert.NoError(err)
 
 	attestRequest := &AttestRequest{
 		ResourceURI: attesterName,
@@ -103,11 +105,12 @@ func TestAtester_VerifyBadOccurrence(t *testing.T) {
 		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
 	}
 	`
-	att := createAttester(attesterName, policyModule, false)
+	att, err := createAttester(attesterName, policyModule, false)
+	assert.NoError(err)
 
 	req := &VerifyRequest{Occurrence: nil}
 
-	err := att.Verify(ctx, req)
+	err = att.Verify(ctx, req)
 	assert.Error(err)
 }
 
@@ -122,7 +125,8 @@ func TestAttester_VerifyBadKey(t *testing.T) {
 		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
 	}
 	`
-	att := createAttester(attesterName, policyModule, false)
+	att, err := createAttester(attesterName, policyModule, false)
+	assert.NoError(err)
 
 	attestRequest := &AttestRequest{
 		ResourceURI: attesterName,
@@ -146,7 +150,9 @@ func TestAttester_VerifyBadKey(t *testing.T) {
 	res, err := att.Attest(ctx, attestRequest)
 	assert.NoError(err)
 
-	newAttester := createAttester(attesterName, policyModule, false)
+	newAttester, err := createAttester(attesterName, policyModule, false)
+	assert.NoError(err)
+
 	req := &VerifyRequest{res.Attestation}
 	err = newAttester.Verify(ctx, req)
 	assert.Error(err)
@@ -163,7 +169,8 @@ func TestAttester_VerifyValid(t *testing.T) {
 		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
 	}
 	`
-	att := createAttester(attesterName, policyModule, false)
+	att, err := createAttester(attesterName, policyModule, false)
+	assert.NoError(err)
 
 	attestRequest := &AttestRequest{
 		ResourceURI: attesterName,
@@ -193,23 +200,23 @@ func TestAttester_VerifyValid(t *testing.T) {
 	assert.NoError(err)
 }
 
-func createAttester(attesterName string, policyModule string, badSigner bool) Attester {
+func createAttester(attesterName string, policyModule string, badSigner bool) (Attester, error) {
 	policy, err := NewPolicy(attesterName, policyModule, true)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if badSigner {
 		signer := &FakeSigner{name: attesterName}
-		return NewAttester(attesterName, policy, signer)
+		return NewAttester(attesterName, policy, signer), nil
 	}
 
 	signer, err := NewSigner(attesterName)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return NewAttester(attesterName, policy, signer)
+	return NewAttester(attesterName, policy, signer), nil
 }
 
 type FakeSigner struct {
