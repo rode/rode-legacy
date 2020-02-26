@@ -86,6 +86,8 @@ helm repo add liatrio https://harbor.toolchain.lead.prod.liatr.io/chartrepo/publ
 helm upgrade -i rode liatrio/rode
 ```
 
+## Elastic Container Registry
+
 Setup collectors, attesters and enforcers through a quickstart:
 
 `kubectl apply -f examples/aws-quickstart.yaml`
@@ -123,6 +125,34 @@ helm upgrade -i rode liatrio/rode --set rbac.serviceAccountAnnotations."eks\.ama
     ]
 }
 ```
+
+## Harbor
+
+If Harbor is being utilized as a container registry, you can specify `harbor` as the collector type.
+
+```
+apiVersion: rode.liatr.io/v1alpha1
+kind: Collector
+spec:
+  name: my_collector
+  type: ecr
+  queueName: my_ecr_event_queue
+```
+apiVersion: rode.liatr.io/v1alpha1
+kind: Collector
+metadata: 
+  name: harborCollector
+  finalizers:
+  - collectors.finalizers.rode.liatr.io
+spec:
+  harbor:
+    harborUrl: "https://example.com"
+    project: "example-project"
+    secret: "default/harbor-harbor-core"
+  type: harbor
+
+```
+
 # Development
 To run locally, install CRDs, then use skaffold with the `local` profile:
 

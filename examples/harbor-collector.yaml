@@ -1,0 +1,12 @@
+apiVersion: rode.liatr.io/v1alpha1
+kind: Collector
+metadata: 
+  name: <harbor-collector-name>
+  finalizers:
+  - collectors.finalizers.rode.liatr.io
+spec:
+  harbor:
+    harborUrl: "https://<harbor-url>" # Protocol is required
+    project: "<harbor-project-name>"
+    secret: "<namespace>/<harbor-secret-name>" # Secret containing Harbor Admin credentials. Admin password must be stored in HARBOR_ADMIN_PASSWORD field.
+  type: harbor
