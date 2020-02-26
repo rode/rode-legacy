@@ -1,8 +1,11 @@
+// +build !unit
+
 package controllers
 
 import (
 	"context"
 	"fmt"
+
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
