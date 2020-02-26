@@ -43,7 +43,7 @@ func NewEcrEventCollector(logger logr.Logger, awsConfig *aws.Config, queueName s
 }
 
 func (i *ecrCollector) Type() string {
-	return "ecr_event"
+	return "ecr"
 }
 
 func (i *ecrCollector) Reconcile(ctx context.Context, name types.NamespacedName) error {

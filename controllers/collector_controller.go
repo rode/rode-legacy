@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/go-logr/logr"
@@ -26,7 +27,10 @@ import (
 	"github.com/liatrio/rode/pkg/collector"
 	"github.com/liatrio/rode/pkg/occurrence"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
+	v1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -87,8 +91,19 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		c = *collectorWorker.collector
 	} else {
 		switch col.Spec.CollectorType {
-		case "ecr_event":
+		case "ecr":
 			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
+		case "harbor":
+			secret, err := r.getHarborSecret(ctx, col.Spec.Harbor.Secret)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			ingress, err := r.getHarborIngress(ctx, "rode", "rode")
+			if err != nil {
+				log.Info("Ingress doesn't exist or isn't properly configured; proceeding without ingress data")
+				ingress = &v1beta1.Ingress{}
+			}
+			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, secret, col.Spec.Harbor.Project, col.ObjectMeta.Namespace, ingress)
 		case "test":
 			c = collector.NewTestCollector(r.Log, "foo")
 		default:
@@ -103,15 +118,23 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		log.Info("stopping worker")
 
 		if collectorWorker, ok := r.Workers[req.NamespacedName.String()]; ok {
-			collectorWorker.done()
-			<-collectorWorker.stopChan
+			if _, ok := c.(collector.StartableCollector); ok {
+				collectorWorker.done()
+				<-collectorWorker.stopChan
+			}
 
 			delete(r.Workers, req.NamespacedName.String())
 		}
 
 		delete(r.WebhookHandlers, webhookHandlerPath(c, req))
 
-		err := c.Destroy(collectorWorker.context)
+		var err error
+		if collectorWorker.context != nil {
+			err = c.Destroy(collectorWorker.context)
+		} else {
+			err = c.Destroy(ctx)
+		}
+
 		if err != nil {
 			return r.setCollectorActive(ctx, col, err)
 		}
@@ -136,6 +159,12 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	if webhookCollector, ok := c.(collector.WebhookCollector); ok {
 		r.WebhookHandlers[webhookHandlerPath(c, req)] = webhookCollector.HandleWebhook
+		collectorWorker = &CollectorWorker{
+			context:   nil,
+			collector: &c,
+			stopChan:  nil,
+			done:      nil,
+		}
 	}
 
 	if startableCollector, ok := c.(collector.StartableCollector); ok {
@@ -152,11 +181,42 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			log.Error(err, "error starting collector")
 			return r.setCollectorActive(ctx, col, err)
 		}
-
-		r.Workers[req.NamespacedName.String()] = collectorWorker
 	}
 
+	r.Workers[req.NamespacedName.String()] = collectorWorker
+
 	return r.setCollectorActive(ctx, col, nil)
+}
+
+func (r *CollectorReconciler) getHarborSecret(ctx context.Context, harborSecret string) (*corev1.Secret, error) {
+	secret := &corev1.Secret{}
+	secretDetails := strings.Split(harborSecret, "/")
+	secretNamespace := secretDetails[0]
+	secretName := secretDetails[1]
+	secretInfo := types.NamespacedName{
+		Name:      secretName,
+		Namespace: secretNamespace,
+	}
+	err := r.Get(ctx, secretInfo, secret)
+	if err != nil {
+		return nil, err
+	}
+
+	return secret, nil
+}
+
+func (r *CollectorReconciler) getHarborIngress(ctx context.Context, ingressName string, ingressNamespace string) (*v1beta1.Ingress, error) {
+	ingress := &v1beta1.Ingress{}
+	ingressInfo := types.NamespacedName{
+		Name:      ingressName,
+		Namespace: ingressNamespace,
+	}
+	err := r.Get(ctx, ingressInfo, ingress)
+	if err != nil {
+		return nil, err
+	}
+
+	return ingress, nil
 }
 
 func (r *CollectorReconciler) setCollectorActive(ctx context.Context, collector *rodev1alpha1.Collector, ctrlError error) (ctrl.Result, error) {

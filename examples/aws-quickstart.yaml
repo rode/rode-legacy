@@ -4,7 +4,7 @@ metadata:
   namespace: rode
   name: aws-ecr-event
 spec:
-  type: ecr_event
+  type: ecr
   ecr:
     queueName: rode-ecr-event-collector
 ---
