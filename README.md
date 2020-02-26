@@ -15,6 +15,7 @@ Collectors are responsible for receiving events from external systems and conver
 
 The list of supported collectors is growing and currently includes:
 * **ECR Events** - image scan events are sent to an SQS queue via CloudWatch event rules.  A collector in rode processes the messages from the queue and converts them into [discovery](https://github.com/grafeas/grafeas/blob/master/docs/grafeas_concepts.md#kind-specific-schemas) and [vulnerability](https://github.com/grafeas/grafeas/blob/master/docs/grafeas_concepts.md#kind-specific-schemas) occurrences in Grafeas.
+* **Harbor Events** - image scan events are sent to a Rode endpoint.  A collector in rode processes the messages from the queue and converts them into [discovery](https://github.com/grafeas/grafeas/blob/master/docs/grafeas_concepts.md#kind-specific-schemas) and [vulnerability](https://github.com/grafeas/grafeas/blob/master/docs/grafeas_concepts.md#kind-specific-schemas) occurrences in Grafeas.
 
 Collectors are defined as `Collector` [custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).  See below for an example:
 
