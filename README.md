@@ -19,7 +19,7 @@ The list of supported collectors is growing and currently includes:
 
 Collectors are defined as `Collector` [custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).  See below for an example:
 
-```
+```yaml
 apiVersion: rode.liatr.io/v1alpha1
 kind: Collector
 spec:
@@ -37,7 +37,7 @@ If all occurrences exist and comply with the policy, then the attester will use 
 
 Attesters are defined as `Attester` [custom resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/).  See below for an example:
 
-```
+```yaml
 apiVersion: rode.liatr.io/v1alpha1
 kind: Attester
 spec:
@@ -72,7 +72,7 @@ Enforcers are defined as [validating admission webhook](https://kubernetes.io/do
 Enforcers are configured to ensure the specified attester referenced in the namespace for the pod had successfully created an attestation. The namespace must include a label for enforcement to be activated:
 
 
-```
+```yaml
   "rode.liatr.io/enforce": true
 ```
 
@@ -81,7 +81,7 @@ Enforcers are configured to ensure the specified attester referenced in the name
 # Installation
 The easiest way to install rode is via the helm chart:
 
-```
+```shell
 helm repo add liatrio https://harbor.toolchain.lead.prod.liatr.io/chartrepo/public
 helm upgrade -i rode liatrio/rode
 ```
@@ -90,15 +90,17 @@ helm upgrade -i rode liatrio/rode
 
 Setup collectors, attesters and enforcers through a quickstart:
 
-`kubectl apply -f examples/aws-quickstart.yaml`
+```shell
+kubectl apply -f examples/aws-quickstart.yaml
+```
 
 The ECR event collector requires the following IAM policy.  Either attach the policy to the EC2 instance or use IRSA and pass the role ARN to Helm:
 
-```
+```shell
 helm upgrade -i rode liatrio/rode --set rbac.serviceAccountAnnotations."eks\.amazonaws\.com/role-arn"=arn:aws:iam::1234567890:role/RodeServiceAccount
 ```
 
-```
+```json
 {
     "Version": "2012-10-17",
     "Statement": [
@@ -130,14 +132,14 @@ helm upgrade -i rode liatrio/rode --set rbac.serviceAccountAnnotations."eks\.ama
 
 If Harbor is being utilized as a container registry, you can specify `harbor` as the collector type.
 
-```
+```yaml
 apiVersion: rode.liatr.io/v1alpha1
 kind: Collector
 spec:
   name: my_collector
   type: ecr
   queueName: my_ecr_event_queue
-```
+---
 apiVersion: rode.liatr.io/v1alpha1
 kind: Collector
 metadata: 
@@ -157,19 +159,28 @@ spec:
 To run locally, install CRDs, then use skaffold with the `local` profile:
 
 To install CRDs (Only needs to be run once):
-`make install`
+
+```shell
+make install
+```
 
 To run controllers:
-`skaffold dev --port-forward`
+
+```shell
+skaffold dev --port-forward
+```
 
 This will also run [localstack](https://github.com/localstack/localstack) to mock services such as SQS.
 
 Setup collectors, attesters and enforcers:
-`kubectl apply -f examples/aws-quickstart.yaml`
+
+```shell
+kubectl apply -f examples/aws-quickstart.yaml
+```
 
 To create an occurence, use the aws cli to send a test message to localstack:
 
-```
+```shell
 aws sqs send-message \
     --endpoint-url http://localhost:30576 \
     --queue-url http://localhost:30576/queue/rode-ecr-event-collector  \
