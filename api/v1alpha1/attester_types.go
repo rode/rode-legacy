@@ -52,6 +52,10 @@ type AttesterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
+	// PgpSecret defines the name of the secret to use for signing. If the secret doesn't already exist it will be created.
+	// +required
+	PgpSecret string `json:"pgpSecret"`
+
 	// Policy defines the Rego policy that the attester will attest adherance to.
 	Policy string `json:"policy"`
 }
@@ -60,10 +64,6 @@ type AttesterSpec struct {
 type AttesterStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-
-	// PgpSecret defines the name of the secret to use for signing. If the secret doesn't already exist it will be created.
-	// +optional
-	PgpSecret string `json:"pgpSecret"`
 
 	// +optional
 	Conditions []Condition `json:"conditions,omitempty"`

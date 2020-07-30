@@ -89,7 +89,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 		// Deleting secret
 		err = attester.DeleteSecret(ctx, att, r.Client, types.NamespacedName{
-			Name:      att.Status.PgpSecret,
+			Name:      att.Spec.PgpSecret,
 			Namespace: req.Namespace,
 		})
 		if err != nil {
@@ -151,23 +151,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
 
-	// If there isn't already a secret name specified, use req.Name
-	if att.Status.PgpSecret == "" {
-		att.Status.PgpSecret = req.Name
-		err = r.Status().Update(ctx, att)
-		if err != nil {
-			log.Error(err, "Could not update the Attester's PgpSecret field")
-			return ctrl.Result{}, err
-		}
-
-		log.Info("Setting PgpSecret to req.Name")
-		// Return to avoid race condition
-		return ctrl.Result{}, nil
-	}
-
 	// Check that the secret exists, if it does, recreate a signer from the secret
 	err = r.Get(ctx, types.NamespacedName{
-		Name:      att.Status.PgpSecret,
+		Name:      att.Spec.PgpSecret,
 		Namespace: req.Namespace,
 	}, signerSecret)
 	if err != nil {
@@ -181,7 +167,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 		signer, err = attester.NewSecret(ctx, att, r.Client, types.NamespacedName{
 			Namespace: req.Namespace,
-			Name:      att.Status.PgpSecret,
+			Name:      att.Spec.PgpSecret,
 		})
 		if err != nil {
 			log.Error(err, "Failed to create the signer secret")
