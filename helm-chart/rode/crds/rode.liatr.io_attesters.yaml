@@ -46,10 +46,6 @@ spec:
         spec:
           description: AttesterSpec defines the desired state of Attester
           properties:
-            pgpSecret:
-              description: PgpSecret defines the name of the secret to use for signing.
-                If the secret doesn't already exist it will be created.
-              type: string
             policy:
               description: Policy defines the Rego policy that the attester will attest
                 adherance to.
@@ -77,6 +73,10 @@ spec:
                 - type
                 type: object
               type: array
+            pgpSecret:
+              description: PgpSecret defines the name of the secret to use for signing.
+                If the secret doesn't already exist it will be created.
+              type: string
           type: object
       type: object
   version: v1alpha1
