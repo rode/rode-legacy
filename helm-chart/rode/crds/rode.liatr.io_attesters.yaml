@@ -55,6 +55,7 @@ spec:
                 adherance to.
               type: string
           required:
+          - pgpSecret
           - policy
           type: object
         status:

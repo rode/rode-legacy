@@ -53,8 +53,9 @@ type AttesterSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// PgpSecret defines the name of the secret to use for signing. If the secret doesn't already exist it will be created.
-	// +optional
+	// +required
 	PgpSecret string `json:"pgpSecret"`
+
 	// Policy defines the Rego policy that the attester will attest adherance to.
 	Policy string `json:"policy"`
 }

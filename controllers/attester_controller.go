@@ -151,20 +151,6 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	signerSecret := &corev1.Secret{}
 	var signer attester.Signer
 
-	// If there isn't already a secret name specified, use req.Name
-	if att.Spec.PgpSecret == "" {
-		att.Spec.PgpSecret = req.Name
-		err = r.Update(ctx, att)
-		if err != nil {
-			log.Error(err, "Could not update the Attester's PgpSecret field")
-			return ctrl.Result{}, err
-		}
-
-		log.Info("Setting PgpSecret to req.Name")
-		// Return to avoid race condition
-		return ctrl.Result{}, nil
-	}
-
 	// Check that the secret exists, if it does, recreate a signer from the secret
 	err = r.Get(ctx, types.NamespacedName{
 		Name:      att.Spec.PgpSecret,
