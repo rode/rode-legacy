@@ -9,9 +9,8 @@ metadata:
     helm.sh/chart: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
-  annotations:
-    description: Ingress for Rode
 {{- if $.Values.ingress.annotations }}
+  annotations:
 {{ toYaml $.Values.ingress.annotations | indent 4 }}
 {{- end }}
 spec:
