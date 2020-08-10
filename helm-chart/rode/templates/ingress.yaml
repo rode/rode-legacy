@@ -5,10 +5,14 @@ kind: Ingress
 metadata:
   name: {{ include "rode.fullname" . }}
   labels:
-    app: {{ template "rode.name" . }}                                                                                                                         
+    app: {{ template "rode.name" . }}
     helm.sh/chart: {{ .Chart.Name }}
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- if $.Values.ingress.annotations }}
+  annotations:
+{{ toYaml $.Values.ingress.annotations | indent 4 }}
+{{- end }}
 spec:
   rules:
   - host: {{ .Values.ingress.hostName }}
