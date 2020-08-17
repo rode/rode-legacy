@@ -11,6 +11,7 @@ spec:
   selector:
     matchLabels:
       app: {{ template "name" . }}
+      release: {{ .Release.name }}
   template:
     metadata:
       labels:
