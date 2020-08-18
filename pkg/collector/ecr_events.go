@@ -361,7 +361,7 @@ func getVulnerabilityDetails(c ecrClient, detail *ECRImageScanDetail) ([]*grafea
 
 	for _, p := range scanFindings.ImageScanFindings.Findings {
 
-		var packageUri, packageName, packageVersion string
+		var packageURI, packageName, packageVersion string
 		packageSeverity := getVulnerabilitySeverity(*p.Severity)
 
 		for _, k := range p.Attributes {
@@ -372,7 +372,7 @@ func getVulnerabilityDetails(c ecrClient, detail *ECRImageScanDetail) ([]*grafea
 			}
 		}
 
-		packageUri = *p.Uri
+		packageURI = *p.Uri
 
 		v := &grafeas.Occurrence_Vulnerability{
 			Vulnerability: &vulnerability.Details{
@@ -380,7 +380,7 @@ func getVulnerabilityDetails(c ecrClient, detail *ECRImageScanDetail) ([]*grafea
 				PackageIssue: []*vulnerability.PackageIssue{
 					{
 						AffectedLocation: &vulnerability.VulnerabilityLocation{
-							CpeUri:  packageUri,
+							CpeUri:  packageURI,
 							Package: packageName,
 							Version: &packag.Version{
 								Kind: packag.Version_NORMAL,
