@@ -171,9 +171,9 @@ type mockECRClient struct{}
 func (m *mockECRClient) DescribeImageScanFindings(input *ecr.DescribeImageScanFindingsInput) (*ecr.DescribeImageScanFindingsOutput, error) {
 	if _, ok := testFindingsOutput[*input.ImageId.ImageDigest]; ok {
 		return testFindingsOutput[*input.ImageId.ImageDigest], nil
-    }
+	}
 
-    return nil, errors.New("error")
+	return nil, errors.New("error")
 }
 
 func (suite *ECRTestSuite) TestGetNoVulnerabilityDetail() {
@@ -236,9 +236,9 @@ func (suite *ECRTestSuite) TestBadInput() {
 		ImageDigest:    "nonExistentImage",
 	}
 
-  _, err := getVulnerabilityDetails(client, testECRDetail)
+	_, err := getVulnerabilityDetails(client, testECRDetail)
 
-  assert.Error(suite.T(), err)
+	assert.Error(suite.T(), err)
 }
 func TestECRTestSuite(t *testing.T) {
 	suite.Run(t, new(ECRTestSuite))

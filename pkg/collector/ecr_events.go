@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"k8s.io/apimachinery/pkg/types"
 	"time"
+
+	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/go-logr/logr"
 
@@ -414,7 +415,7 @@ func getVulnerabilitySeverity(v string) vulnerability.Severity {
 	}
 }
 
-func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *ECRImageScanDetail) (occurrences []*grafeas.Occurrence, err error) {
+func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *ECRImageScanDetail) ([]*grafeas.Occurrence, error) {
 	tags := detail.ImageTags
 	if len(tags) == 0 {
 		tags = []string{"latest"}
@@ -427,6 +428,7 @@ func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *E
 	ecrClient := ecr.New(ses)
 
 	if detail.ScanStatus == "COMPLETE" {
+		var err error
 		status = discovery.Discovered_FINISHED_SUCCESS
 		vulnerabilityDetails, err = getVulnerabilityDetails(ecrClient, detail)
 		if err != nil {
@@ -444,7 +446,7 @@ func (i *ecrCollector) newImageScanOccurrences(event *CloudWatchEvent, detail *E
 		},
 	}
 
-	occurrences = make([]*grafeas.Occurrence, 0)
+	occurrences := make([]*grafeas.Occurrence, 0)
 	for _, tag := range tags {
 		o := newImageScanOccurrence(event, detail, tag, i.queueName)
 		o.Details = discoveryDetails
