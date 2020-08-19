@@ -84,7 +84,7 @@ podAnnotations: {}
 replicaCount: 1
 minAvailable: 1
 
-resources: 
+resources:
   limits:
     cpu: 1
     memory: 100Mi
@@ -94,3 +94,7 @@ resources:
 
 ingress:
   enabled: false
+
+event_streamer:
+  enabled: false
+  type: jetstream

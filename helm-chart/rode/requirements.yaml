@@ -5,3 +5,6 @@ dependencies:
   - name: localstack
     version: 0.4.0
     condition: localstack.enabled
+  - name: jetstream
+    version: 0.1.0
+    condition: event_streamer.enabled
