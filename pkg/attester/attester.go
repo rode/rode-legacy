@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/liatrio/rode/pkg/broker"
+
 	"github.com/golang/protobuf/jsonpb"
 
 	attestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
@@ -155,3 +157,5 @@ func (oi *occurrenceInput) addOccurrence(occurrence *grafeas.Occurrence) error {
 	oi.Occurrences = append(oi.Occurrences, occurrenceAsMap)
 	return nil
 }
+
+var b Broker
