@@ -1,7 +1,0 @@
-dependencies:
-  - name: grafeas
-    version: 0.1.1
-    condition: grafeas.enabled
-  - name: localstack
-    version: 0.4.0
-    condition: localstack.enabled
