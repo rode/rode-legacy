@@ -19,8 +19,12 @@ deploy:
 portForward:
 - resourceType: service
   resourceName: rode
-  port: 443 
+  port: 443
   localPort: 9443
+- resourceType: service
+  resourceName: rode-jetstream
+  port: 4222
+  localPort: 4222
 profiles:
 - name: local
   activation:

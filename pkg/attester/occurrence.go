@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/liatrio/rode/pkg/attestEventManager"
+
 	"github.com/go-logr/logr"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	"github.com/liatrio/rode/pkg/occurrence"
@@ -25,15 +27,19 @@ type attestWrapper struct {
 
 	// used to retieve all occurrences for a resource
 	occurrenceLister occurrence.Lister
+
+  // Used to publish attestation events to event streamer
+  aem attestEventManager.AttestEventManager
 }
 
 // NewAttestWrapper creates an Creator that also performs attestation
-func NewAttestWrapper(log logr.Logger, delegate occurrence.Creator, lister occurrence.Lister, attesterLister Lister) occurrence.Creator {
+func NewAttestWrapper(log logr.Logger, delegate occurrence.Creator, lister occurrence.Lister, attesterLister Lister, attEventManager attestEventManager.AttestEventManager) occurrence.Creator {
 	return &attestWrapper{
 		log,
 		delegate,
 		attesterLister,
 		lister,
+    attEventManager,
 	}
 }
 
@@ -78,6 +84,10 @@ func (a *attestWrapper) CreateOccurrences(ctx context.Context, occurrences ...*g
 					if err != nil {
 						return fmt.Errorf("Unable to store attestation for occurrence %v", err)
 					}
+          err = a.aem.Publish(att.String(), resp.Attestation)
+          if err != nil {
+            return fmt.Errorf("Unable to publish attestation event")
+          }
 				}
 			}
 		}

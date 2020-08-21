@@ -5,17 +5,19 @@ go 1.13
 require (
 	github.com/aws/aws-sdk-go v1.28.9
 	github.com/go-logr/logr v0.1.0
-	github.com/golang/protobuf v1.3.2
+	github.com/golang/protobuf v1.4.2
 	github.com/grafeas/grafeas v0.1.4
+	github.com/nats-io/jsm.go v0.0.18
+	github.com/nats-io/nats.go v1.10.1-0.20200606002146-fc6fed82929a
 	github.com/onsi/ginkgo v1.10.1
 	github.com/onsi/gomega v1.7.0
 	github.com/open-policy-agent/opa v0.16.2
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
 	go.uber.org/zap v1.13.0 // indirect
-	golang.org/x/crypto v0.0.0-20190820162420-60c769a6c586
-	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
-	google.golang.org/grpc v1.23.0
+	golang.org/x/crypto v0.0.0-20200323165209-0ec3e9974c59
+	google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
+	google.golang.org/grpc v1.27.0
 	k8s.io/api v0.17.1
 	k8s.io/apimachinery v0.17.1
 	k8s.io/client-go v0.17.0

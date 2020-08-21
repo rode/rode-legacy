@@ -96,5 +96,5 @@ ingress:
   enabled: false
 
 event_streamer:
-  enabled: false
+  enabled: true
   type: jetstream
