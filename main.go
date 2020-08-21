@@ -88,7 +88,14 @@ func main() {
 		os.Exit(1)
 	}
 
-  aem =  &attestEventManager.JetstreamClient{Url: "http://rode-jetstream"}
+
+	switch os.Getenv("EVENT_STREAMER_TYPE") {
+		case "jetstream":
+      aem =  &attestEventManager.JetstreamClient{Url: os.Getenv("EVENT_STREAMER_ENDPOINT")}
+    default:
+      setupLog.Error(err, "unable to determine event_streamer type")
+      os.Exit(1)
+  }
 
 	attesters := &controllers.AttesterReconciler{
 		Client:    mgr.GetClient(),

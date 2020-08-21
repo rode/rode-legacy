@@ -106,8 +106,6 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			c = collector.NewHarborEventCollector(r.Log, col.Spec.Harbor.HarborURL, secret, col.Spec.Harbor.Project, col.ObjectMeta.Namespace, ingress)
 		case "test":
 			c = collector.NewTestCollector(r.Log, "foo")
-		case "dummy":
-			c = collector.NewDummyCollector(r.Log, "dummy")
 		default:
 			err = errors.New("Unknown collector type")
 			// Loud output when erroring, getting more reconciles than expected.

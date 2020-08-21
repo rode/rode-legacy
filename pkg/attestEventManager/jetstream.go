@@ -25,15 +25,15 @@ func (c *JetstreamClient) new() (*nats.Conn, error) {
 func (c *JetstreamClient) Publish(attesterName string, occurrence *grafeas.Occurrence) error {
   nc, err := c.new()
   if err != nil {
-    // do something with the error
+     return err
   }
 
-  _, err = jsm.LoadStream("ATTESTATION", jsm.WithConnection(nc))
+  _, err = jsm.LoadOrNewStream("ATTESTATION", jsm.Subjects("ATTESTATION.*"), jsm.StreamConnection(jsm.WithConnection(nc)), jsm.MaxAge(24*365*time.Hour), jsm.FileStorage())
   if err != nil {
-    _, _ = jsm.NewStream("ATTESTATION", jsm.Subjects("ATTESTATION.*"), jsm.StreamConnection(jsm.WithConnection(nc)), jsm.MaxAge(24*365*time.Hour), jsm.FileStorage())
+    return err
   }
 
-  subSubject := "ATTESTATION." + attesterName // lab_image
+  subSubject := "ATTESTATION." + attesterName
 
   occurrenceBytes := new(bytes.Buffer)
   json.NewEncoder(occurrenceBytes).Encode(occurrence)
