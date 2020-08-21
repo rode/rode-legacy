@@ -1,0 +1,22 @@
+apiVersion: rode.liatr.io/v1alpha1
+kind: Attester
+metadata:
+  generation: 1
+  name: imagescan
+  namespace: rode
+spec:
+  pgpSecret: imagescan
+  policy: |
+    package imagescan
+
+    violation[{"msg":"analysis failed"}]{
+        input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
+    }
+---
+apiVersion: rode.liatr.io/v1alpha1
+kind: Collector
+metadata:
+  name: rode-test-collector
+  namespace: rode
+spec:
+  type: test
