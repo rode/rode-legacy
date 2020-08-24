@@ -30,7 +30,7 @@ import (
 
 	"github.com/liatrio/rode/pkg/enforcer"
 
-	"github.com/liatrio/rode/pkg/attest_event_manager"
+	attesteventmanager "github.com/liatrio/rode/pkg/attesteventmanager"
 
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/controllers"
@@ -62,7 +62,7 @@ func main() {
 	var healthAddr string
 	var certDir string
 	var enableLeaderElection bool
-	var aem attest_event_manager.AttestEventManager
+	var aem attesteventmanager.AttestEventManager
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "The address the metric endpoint binds to.")
 	flag.StringVar(&healthAddr, "health-addr", ":4000", "The address the health endpoint binds to.")
@@ -90,7 +90,7 @@ func main() {
 
 	switch os.Getenv("EVENT_STREAMER_TYPE") {
 	case "jetstream":
-		aem = &attest_event_manager.JetstreamClient{Url: os.Getenv("EVENT_STREAMER_ENDPOINT")}
+		aem = &attesteventmanager.JetstreamClient{Url: os.Getenv("EVENT_STREAMER_ENDPOINT")}
 	default:
 		setupLog.Error(err, "unable to determine event_streamer type")
 		os.Exit(1)
