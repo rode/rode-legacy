@@ -18,7 +18,7 @@ type Lister interface {
 type attestWrapper struct {
 	log logr.Logger
 
-	// delegate for creating occurrences.  used to create initial occcurences as well as the attestations.
+	// delegate for creating occurrences.  used to create initial occurrences as well as the attestations.
 	occurrenceCreator occurrence.Creator
 
 	// list of attesters
