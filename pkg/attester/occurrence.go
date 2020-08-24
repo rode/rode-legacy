@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-logr/logr"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
+	"github.com/liatrio/rode/pkg/attesteventmanager"
 	"github.com/liatrio/rode/pkg/occurrence"
 )
 
