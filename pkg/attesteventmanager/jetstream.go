@@ -11,11 +11,11 @@ import (
 )
 
 type JetstreamClient struct {
-	Url string
+	URL string
 }
 
 func (c *JetstreamClient) new() (*nats.Conn, error) {
-	nc, err := nats.Connect(c.Url)
+	nc, err := nats.Connect(c.URL)
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,10 @@ func (c *JetstreamClient) Publish(attesterName string, occurrence *grafeas.Occur
 	subSubject := "ATTESTATION." + attesterName
 
 	occurrenceBytes := new(bytes.Buffer)
-	json.NewEncoder(occurrenceBytes).Encode(occurrence)
+	err = json.NewEncoder(occurrenceBytes).Encode(occurrence)
+  if err != nil {
+    return err
+  }
 
 	return nc.Publish(subSubject, occurrenceBytes.Bytes())
 }

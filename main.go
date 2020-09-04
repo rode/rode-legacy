@@ -90,7 +90,7 @@ func main() {
 
 	switch os.Getenv("EVENT_STREAMER_TYPE") {
 	case "jetstream":
-		aem = &attesteventmanager.JetstreamClient{Url: os.Getenv("EVENT_STREAMER_ENDPOINT")}
+		aem = &attesteventmanager.JetstreamClient{URL: os.Getenv("EVENT_STREAMER_ENDPOINT")}
 	default:
 		setupLog.Error(err, "unable to determine event_streamer type")
 		os.Exit(1)

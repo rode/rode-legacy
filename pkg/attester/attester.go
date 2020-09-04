@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/protobuf/jsonpb"
-
 	attestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 )
@@ -139,9 +137,8 @@ func (oi *occurrenceInput) addOccurrence(occurrence *grafeas.Occurrence) error {
 		oi.Occurrences = make([]map[string]interface{}, 0)
 	}
 
-	marshaler := &jsonpb.Marshaler{}
 	buf := new(bytes.Buffer)
-	err := marshaler.Marshal(buf, occurrence)
+	err := json.NewEncoder(buf).Encode(occurrence)
 	if err != nil {
 		return err
 	}
