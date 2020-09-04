@@ -1,6 +1,0 @@
-dependencies:
-- name: grafeas
-  repository: ""
-  version: 0.1.1
-digest: sha256:a58fa881a41bca1803cd477569ee346e66c1efde0417f993b5293b4ccc0d4ea1
-generated: "2020-01-12T21:25:53.999338-08:00"
