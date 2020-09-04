@@ -36,6 +36,10 @@ spec:
               value: {{ .Values.ginMode }}
             - name: GRAFEAS_ENDPOINT
               value: {{ .Values.grafeas.endpoint | default  (printf "grafeas-server.%s.svc.cluster.local:443" .Release.Namespace) }}
+            - name: EVENT_STREAMER_TYPE
+              value: {{ .Values.event_streamer.type | default  (printf "jetstream") }}
+            - name: EVENT_STREAMER_ENDPOINT
+              value: {{ .Values.event_streamer.endpoint | default  (printf "rode-jetstream.%s.svc.cluster.local" .Release.Namespace) }}
             - name: TLS_CA_CERT
               value: /certificates/ca.crt
             - name: TLS_CLIENT_CERT

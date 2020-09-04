@@ -30,6 +30,8 @@ import (
 
 	"github.com/liatrio/rode/pkg/enforcer"
 
+	attesteventmanager "github.com/liatrio/rode/pkg/attesteventmanager"
+
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/controllers"
 	"github.com/liatrio/rode/pkg/attester"
@@ -60,6 +62,8 @@ func main() {
 	var healthAddr string
 	var certDir string
 	var enableLeaderElection bool
+	var aem attesteventmanager.AttestEventManager
+
 	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "The address the metric endpoint binds to.")
 	flag.StringVar(&healthAddr, "health-addr", ":4000", "The address the health endpoint binds to.")
 	flag.StringVar(&certDir, "cert-dir", "/certificates", "The path to tls certificates.")
@@ -81,6 +85,14 @@ func main() {
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
+		os.Exit(1)
+	}
+
+	switch os.Getenv("EVENT_STREAMER_TYPE") {
+	case "jetstream":
+		aem = &attesteventmanager.JetstreamClient{URL: os.Getenv("EVENT_STREAMER_ENDPOINT")}
+	default:
+		setupLog.Error(err, "unable to determine event_streamer type")
 		os.Exit(1)
 	}
 
@@ -108,7 +120,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters)
+	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters, aem)
 
 	handlers := make(map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator))
 	webhookMux := http.NewServeMux()

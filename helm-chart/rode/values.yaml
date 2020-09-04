@@ -98,3 +98,4 @@ ingress:
 event_streamer:
   enabled: true
   type: jetstream
+  endpoint: ""
