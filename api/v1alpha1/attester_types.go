@@ -56,7 +56,7 @@ type AttesterSpec struct {
 	// +required
 	PgpSecret string `json:"pgpSecret"`
 
-	// Policy defines the Rego policy that the attester will attest adherance to.
+	// Policy defines the Rego policy that the attester will attest adherence to.
 	Policy string `json:"policy"`
 }
 
