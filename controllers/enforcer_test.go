@@ -240,7 +240,7 @@ func createInternalAttester(ctx context.Context, att *rodev1alpha1.Attester) *at
 	err = k8sClient.Get(ctx, attesterNamespacedName, signerSecret)
 	Expect(err).ToNot(HaveOccurred(), "failed to fetch signer secret", err)
 
-	signer, err := attester.ReadSigner(bytes.NewBuffer(signerSecret.Data["keys"]))
+	signer, err := attester.NewSignerFromKeys(signerSecret.Data["privateKey"])
 	Expect(err).ToNot(HaveOccurred(), "failed to read signer", err)
 
 	internalAttester := attester.NewAttester(attesterNamespacedName.String(), policy, signer)

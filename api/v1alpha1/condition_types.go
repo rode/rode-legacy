@@ -24,3 +24,5 @@ const (
 	ConditionCompiled ConditionType = "Policy"
 	ConditionSecret   ConditionType = "Key"
 )
+
+var ConditionTypeIndex = map[ConditionType]int{ConditionCompiled: 0, ConditionSecret: 1}
