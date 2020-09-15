@@ -37,9 +37,9 @@ func (c *JetstreamClient) Publish(attesterName string, occurrence *grafeas.Occur
 
 	occurrenceBytes := new(bytes.Buffer)
 	err = json.NewEncoder(occurrenceBytes).Encode(occurrence)
-  if err != nil {
-    return err
-  }
+	if err != nil {
+		return err
+	}
 
 	return nc.Publish(subSubject, occurrenceBytes.Bytes())
 }

@@ -63,7 +63,7 @@ var _ = Context("enforcers", func() {
 		var (
 			enforcerName string
 			attesterName string
-			secretName string
+			secretName   string
 		)
 
 		BeforeEach(func() {
@@ -134,7 +134,7 @@ var _ = Context("enforcers", func() {
 					},
 					Spec: rodev1alpha1.AttesterSpec{
 						PgpSecret: secretName,
-						Policy: basicAttesterPolicy(attesterName),
+						Policy:    basicAttesterPolicy(attesterName),
 					},
 				}
 
@@ -236,7 +236,7 @@ func createInternalAttester(ctx context.Context, att *rodev1alpha1.Attester) *at
 		Name:      att.Name,
 	}
 	secretNamespacedName := types.NamespacedName{
-		Name: att.Spec.PgpSecret,
+		Name:      att.Spec.PgpSecret,
 		Namespace: att.Namespace,
 	}
 

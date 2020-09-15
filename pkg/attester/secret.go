@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// CreateSecret creates a Kubernetes secret for the attester using the OpenPGP keys from signer 
+// CreateSecret creates a Kubernetes secret for the attester using the OpenPGP keys from signer
 func CreateSecret(ctx context.Context, k8sClient client.Client, attester *rodev1alpha1.Attester, signer Signer) (secret *corev1.Secret, err error) {
 	data := map[string][]byte{}
 	data["primaryKey"], err = signer.SerializePublicKey()
