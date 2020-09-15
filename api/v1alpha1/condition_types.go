@@ -45,7 +45,7 @@ func SetCondition(con Conditioner, conditionType ConditionType, status Condition
 	condition.LastTransitionTime = &now
 
 	conditions := con.GetConditions()
-	var result []Condition
+	var result []Condition // nolint: prealloc
 	conditionModified := false
 
 	for _, cond := range conditions {
