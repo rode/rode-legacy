@@ -17,6 +17,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/go-logr/logr"
@@ -90,7 +91,8 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		// Deleting secret
 		err = attester.DeleteSecret(ctx, r.Client, att)
 		if err != nil {
-			log.Error(err, "Failed to delete the secret")
+			log.Info(fmt.Sprintf("Error deleteing secret: %s", err))
+			err = nil
 		}
 
 		// Deleting attester object
@@ -125,17 +127,15 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	policy, err := attester.NewPolicy(req.Name, att.Spec.Policy, opaTrace)
 	if err != nil {
 		log.Error(err, "Unable to create policy")
-
 		_ = r.updateStatus(ctx, att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusFalse)
-
 		return ctrl.Result{}, err
 	}
-
 	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusTrue)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
+	// Create signer
 	signer, err := r.createSigner(ctx, att)
 	if err != nil {
 		_ = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse)
@@ -171,15 +171,21 @@ func (r *AttesterReconciler) registerFinalizer(attester *rodev1alpha1.Attester) 
 func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1alpha1.Attester, conditionType rodev1alpha1.ConditionType, status rodev1alpha1.ConditionStatus) error {
 	conditionIndex := rodev1alpha1.ConditionTypeIndex[conditionType]
 	log := r.Log.WithName("updateStatus()").WithValues("type", conditionType, "status", status)
-	log.Info("Updating Attester status")
 
 	if attester.Status.Conditions[conditionIndex].Status == status {
 		return nil
 	}
 
+	log.Info("Updating Attester status")
+
 	attester.Status.Conditions[conditionIndex].Status = status
 
-	if err := r.Status().Update(ctx, attester); err != nil {
+	patch, err := json.Marshal(rodev1alpha1.Attester{Status: attester.Status})
+	if err != nil {
+		log.Error(err, "Error creating status patch")
+		return err
+	}
+	if err := r.Status().Patch(ctx, attester, client.RawPatch(types.MergePatchType, patch)); err != nil {
 		log.Error(err, "Unable to update Attester status")
 		return err
 	}
