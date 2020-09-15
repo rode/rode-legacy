@@ -18,6 +18,7 @@ import (
 var _ = Context("attester controller", func() {
 	var (
 		attesterName    string
+		secretName			string
 		shouldBeDeleted bool
 	)
 
@@ -30,6 +31,7 @@ var _ = Context("attester controller", func() {
 			shouldBeDeleted = true
 
 			attesterName = fmt.Sprintf("attester%s", rand.String(10))
+			secretName = fmt.Sprintf("secret%s", rand.String(10))
 
 			attester := &rodev1alpha1.Attester{
 				ObjectMeta: metav1.ObjectMeta{
@@ -37,6 +39,7 @@ var _ = Context("attester controller", func() {
 					Namespace: namespace.Name,
 				},
 				Spec: rodev1alpha1.AttesterSpec{
+					PgpSecret: secretName,
 					Policy: basicAttesterPolicy(attesterName),
 				},
 			}
@@ -74,13 +77,13 @@ var _ = Context("attester controller", func() {
 
 			Expect(err).ToNot(HaveOccurred(), "error getting test attest", err)
 
-			status := att.Status.Conditions[1].Status
+			status := att.Status.Conditions[rodev1alpha1.ConditionTypeIndex[rodev1alpha1.ConditionSecret]].Status
 			Expect(status).To(BeEquivalentTo(rodev1alpha1.ConditionStatusTrue))
 
 			secret := corev1.Secret{}
 
 			err = k8sClient.Get(ctx, types.NamespacedName{
-				Name:      attesterName,
+				Name:      secretName,
 				Namespace: namespace.Name,
 			}, &secret)
 
@@ -95,7 +98,7 @@ var _ = Context("attester controller", func() {
 			secret := corev1.Secret{}
 
 			err := k8sClient.Get(ctx, types.NamespacedName{
-				Name:      attesterName,
+				Name:      secretName,
 				Namespace: namespace.Name,
 			}, &secret)
 

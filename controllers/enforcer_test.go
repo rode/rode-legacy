@@ -63,11 +63,13 @@ var _ = Context("enforcers", func() {
 		var (
 			enforcerName string
 			attesterName string
+			secretName string
 		)
 
 		BeforeEach(func() {
 			enforcerName = fmt.Sprintf("test-enforcer-%s", rand.String(10))
 			attesterName = fmt.Sprintf("testattester%s", rand.String(10))
+			secretName = fmt.Sprintf("testattestersecret-%s", rand.String(10))
 
 			enforcer := &rodev1alpha1.Enforcer{
 				ObjectMeta: metav1.ObjectMeta{
@@ -131,6 +133,7 @@ var _ = Context("enforcers", func() {
 						Namespace: namespace.Name,
 					},
 					Spec: rodev1alpha1.AttesterSpec{
+						PgpSecret: secretName,
 						Policy: basicAttesterPolicy(attesterName),
 					},
 				}
@@ -232,12 +235,16 @@ func createInternalAttester(ctx context.Context, att *rodev1alpha1.Attester) *at
 		Namespace: att.Namespace,
 		Name:      att.Name,
 	}
+	secretNamespacedName := types.NamespacedName{
+		Name: att.Spec.PgpSecret,
+		Namespace: att.Namespace,
+	}
 
 	policy, err := attester.NewPolicy(att.Name, att.Spec.Policy, false)
 	Expect(err).ToNot(HaveOccurred(), "failed to create test attester policy", err)
 
 	signerSecret := &corev1.Secret{}
-	err = k8sClient.Get(ctx, attesterNamespacedName, signerSecret)
+	err = k8sClient.Get(ctx, secretNamespacedName, signerSecret)
 	Expect(err).ToNot(HaveOccurred(), "failed to fetch signer secret", err)
 
 	signer, err := attester.NewSignerFromKeys(signerSecret.Data["privateKey"])
