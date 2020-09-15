@@ -189,29 +189,35 @@ func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // Create Signer instance by reading OpenPGP keys from Kubernetes secret or generating new keys and storing them in secret
 func (r *AttesterReconciler) createSigner(ctx context.Context, attesterResource *rodev1alpha1.Attester) (attester.Signer, error) {
-	var signer attester.Signer
 	log := r.Log.WithName("CreateSigner()")
+	var signer attester.Signer
 	secret := &corev1.Secret{}
+
 	err := r.Get(ctx, types.NamespacedName{Name: attesterResource.Spec.PgpSecret, Namespace: attesterResource.Namespace}, secret)
 	if err != nil {
 		if !errors.IsNotFound(err) {
 			return nil, err
 		}
-		log.Info("Creating new atterster secret")
+
+		log.Info("Creating new attester secret")
 		signer, err = attester.NewSigner(attesterResource.Name)
 		if err != nil {
 			log.Error(err, "Error creating new attester signer")
 			return nil, err
 		}
+
 		_, err = attester.CreateSecret(ctx, r.Client, attesterResource, signer)
 		if err != nil {
 			log.Error(err, "Error creating attester secret")
 			return nil, err
 		}
+
 		return signer, nil
 	}
+
 	log.Info("Create Attester Signer from existing secret", "secret", fmt.Sprintf("%s.%s", secret.Name, secret.Namespace))
 	signer, err = attester.NewSignerFromKeys(secret.Data["privateKey"])
+
 	return signer, err
 }
 
