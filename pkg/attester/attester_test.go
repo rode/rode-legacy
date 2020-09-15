@@ -3,7 +3,6 @@ package attester
 import (
 	"context"
 	"fmt"
-	"io"
 	"testing"
 
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
@@ -223,6 +222,10 @@ type FakeSigner struct {
 	name string
 }
 
+func (s *FakeSigner) String() string {
+	return s.name
+}
+
 func (s *FakeSigner) Sign(message string) (string, error) {
 	return s.name, fmt.Errorf("invalid signer")
 }
@@ -235,10 +238,10 @@ func (s *FakeSigner) KeyID() string {
 	return s.name
 }
 
-func (s *FakeSigner) Serialize(out io.Writer) error {
-	_, err := out.Write([]byte(s.name))
-	if err != nil {
-		return fmt.Errorf("failed to do nothing")
-	}
-	return fmt.Errorf("invalid signer")
+func (s *FakeSigner) SerializeKeys() ([]byte, error) {
+	return []byte{}, nil
+}
+
+func (s *FakeSigner) SerializePublicKey() ([]byte, error) {
+	return []byte{}, nil
 }
