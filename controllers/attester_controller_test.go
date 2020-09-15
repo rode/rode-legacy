@@ -18,7 +18,7 @@ import (
 var _ = Context("attester controller", func() {
 	var (
 		attesterName    string
-		secretName			string
+		secretName      string
 		shouldBeDeleted bool
 	)
 
@@ -40,7 +40,7 @@ var _ = Context("attester controller", func() {
 				},
 				Spec: rodev1alpha1.AttesterSpec{
 					PgpSecret: secretName,
-					Policy: basicAttesterPolicy(attesterName),
+					Policy:    basicAttesterPolicy(attesterName),
 				},
 			}
 
