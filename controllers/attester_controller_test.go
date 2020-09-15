@@ -77,7 +77,7 @@ var _ = Context("attester controller", func() {
 
 			Expect(err).ToNot(HaveOccurred(), "error getting test attest", err)
 
-			status := att.Status.Conditions[rodev1alpha1.ConditionTypeIndex[rodev1alpha1.ConditionSecret]].Status
+			status := rodev1alpha1.GetConditionStatus(&att, rodev1alpha1.ConditionSecret)
 			Expect(status).To(BeEquivalentTo(rodev1alpha1.ConditionStatusTrue))
 
 			secret := corev1.Secret{}

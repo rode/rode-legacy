@@ -73,6 +73,10 @@ func init() {
 	SchemeBuilder.Register(&Attester{}, &AttesterList{})
 }
 
-func (a *Attester) GetConditions() []Condition {
-	return a.Status.Conditions
+func (in *Attester) GetConditions() []Condition {
+	return in.Status.Conditions
+}
+
+func (in *Attester) SetConditions(conditions []Condition) {
+	in.Status.Conditions = conditions
 }

@@ -75,6 +75,10 @@ func init() {
 	SchemeBuilder.Register(&Collector{}, &CollectorList{})
 }
 
-func (c *Collector) GetConditions() []Condition {
-	return c.Status.Conditions
+func (in *Collector) GetConditions() []Condition {
+	return in.Status.Conditions
+}
+
+func (in *Collector) SetConditions(conditions []Condition) {
+	in.Status.Conditions = conditions
 }

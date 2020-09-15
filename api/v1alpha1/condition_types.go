@@ -1,6 +1,9 @@
 package v1alpha1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/clock"
+)
 
 type ConditionStatus string
 
@@ -25,4 +28,54 @@ const (
 	ConditionSecret   ConditionType = "Key"
 )
 
-var ConditionTypeIndex = map[ConditionType]int{ConditionCompiled: 0, ConditionSecret: 1}
+// +k8s:deepcopy-gen=false
+type Conditioner interface {
+	GetConditions() []Condition
+	SetConditions([]Condition)
+}
+
+func SetCondition(con Conditioner, conditionType ConditionType, status ConditionStatus, message string) {
+	condition := Condition{
+		Type:    conditionType,
+		Status:  status,
+		Message: message,
+	}
+
+	now := metav1.NewTime(clock.RealClock{}.Now())
+	condition.LastTransitionTime = &now
+
+	conditions := con.GetConditions()
+	var result []Condition
+	conditionModified := false
+
+	for _, cond := range conditions {
+		if cond.Type != condition.Type {
+			result = append(result, cond)
+			continue
+		}
+
+		if cond.Status == condition.Status {
+			condition.LastTransitionTime = cond.LastTransitionTime
+		}
+
+		result = append(result, condition)
+
+		conditionModified = true
+	}
+
+	if !conditionModified {
+		result = append(result, condition)
+	}
+
+	con.SetConditions(result)
+}
+
+func GetConditionStatus(con Conditioner, conditionType ConditionType) ConditionStatus {
+	for _, cond := range con.GetConditions() {
+		if cond.Type == conditionType {
+			return cond.Status
+		}
+	}
+
+	return ConditionStatusUnknown
+}

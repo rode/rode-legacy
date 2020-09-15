@@ -103,19 +103,8 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// If there are 0 conditions then initialize conditions by adding two with false statuses
 	if len(att.Status.Conditions) == 0 {
-		policyCondition := rodev1alpha1.Condition{
-			Type:   rodev1alpha1.ConditionCompiled,
-			Status: rodev1alpha1.ConditionStatusFalse,
-		}
-
-		att.Status.Conditions = append(att.Status.Conditions, policyCondition)
-
-		secretCondition := rodev1alpha1.Condition{
-			Type:   rodev1alpha1.ConditionSecret,
-			Status: rodev1alpha1.ConditionStatusFalse,
-		}
-
-		att.Status.Conditions = append(att.Status.Conditions, secretCondition)
+		rodev1alpha1.SetCondition(att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusFalse, "")
+		rodev1alpha1.SetCondition(att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, "")
 
 		if err := r.Status().Update(ctx, att); err != nil {
 			log.Error(err, "Unable to initialize attester status")
@@ -169,16 +158,10 @@ func (r *AttesterReconciler) registerFinalizer(attester *rodev1alpha1.Attester) 
 }
 
 func (r *AttesterReconciler) updateStatus(ctx context.Context, attester *rodev1alpha1.Attester, conditionType rodev1alpha1.ConditionType, status rodev1alpha1.ConditionStatus) error {
-	conditionIndex := rodev1alpha1.ConditionTypeIndex[conditionType]
 	log := r.Log.WithName("updateStatus()").WithValues("type", conditionType, "status", status)
 
-	if attester.Status.Conditions[conditionIndex].Status == status {
-		return nil
-	}
-
 	log.Info("Updating Attester status")
-
-	attester.Status.Conditions[conditionIndex].Status = status
+	rodev1alpha1.SetCondition(attester, conditionType, status, "") // TODO: add message
 
 	patch, err := json.Marshal(rodev1alpha1.Attester{Status: attester.Status})
 	if err != nil {
