@@ -27,10 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	"github.com/go-logr/logr"
-
 	"github.com/liatrio/rode/pkg/enforcer"
-
-	attesteventmanager "github.com/liatrio/rode/pkg/attesteventmanager"
+	"github.com/liatrio/rode/pkg/eventmanager"
 
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/controllers"
@@ -57,18 +55,36 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+func envBool(name string, defaultValue bool) bool {
+	if value, ok := os.LookupEnv(name); ok {
+		return value == "true"
+	}
+	return defaultValue
+}
+
+func envString(name string, defaultValue string) string {
+	if value, ok := os.LookupEnv(name); ok {
+		return value
+	}
+	return defaultValue
+}
+
 func main() {
 	var metricsAddr string
 	var healthAddr string
 	var certDir string
 	var enableLeaderElection bool
-	var aem attesteventmanager.AttestEventManager
+	var enableAttester = true
+	var enableEnforcer = true
+	var aem eventmanager.EventManager
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "The address the metric endpoint binds to.")
 	flag.StringVar(&healthAddr, "health-addr", ":4000", "The address the health endpoint binds to.")
 	flag.StringVar(&certDir, "cert-dir", "/certificates", "The path to tls certificates.")
 	flag.BoolVar(&enableLeaderElection, "enable-leader-election", false,
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
+	flag.BoolVar(&enableAttester, "enable-attester", envBool("ENABLE_ATTESTER", enableAttester), "Enable / disable attester & collector controller")
+	flag.BoolVar(&enableEnforcer, "enable-enforcer", envBool("ENABLE_ENFORCER", enableEnforcer), "Enable / disable enforcer controller")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
@@ -90,20 +106,9 @@ func main() {
 
 	switch os.Getenv("EVENT_STREAMER_TYPE") {
 	case "jetstream":
-		aem = &attesteventmanager.JetstreamClient{URL: os.Getenv("EVENT_STREAMER_ENDPOINT")}
+		aem = &eventmanager.JetstreamClient{URL: os.Getenv("EVENT_STREAMER_ENDPOINT"), Log: ctrl.Log.WithName("EventManagerJetstream")}
 	default:
 		setupLog.Error(err, "unable to determine event_streamer type")
-		os.Exit(1)
-	}
-
-	attesters := &controllers.AttesterReconciler{
-		Client:    mgr.GetClient(),
-		Log:       ctrl.Log.WithName("controllers").WithName("Attester"),
-		Scheme:    mgr.GetScheme(),
-		Attesters: make(map[string]attester.Attester),
-	}
-	if err = attesters.SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Attester")
 		os.Exit(1)
 	}
 
@@ -120,39 +125,81 @@ func main() {
 		os.Exit(1)
 	}
 
-	occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters, aem)
-
-	handlers := make(map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator))
 	webhookMux := http.NewServeMux()
-	webhookMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
-		path := request.URL.Path[1:]
-
-		if handler, ok := handlers[path]; ok {
-			handler(writer, request, occurrenceCreator)
-		} else {
-			writer.WriteHeader(http.StatusNotFound)
-		}
-	})
 	webhookServer := http.Server{
 		Addr:    ":8080",
 		Handler: webhookMux,
 	}
+	go func() {
+		if err := webhookServer.ListenAndServe(); err != nil {
+			setupLog.Error(err, "error starting webhook server")
+			os.Exit(1)
+		}
+	}()
 
-	if err = (&controllers.CollectorReconciler{
-		Client:            mgr.GetClient(),
-		Log:               ctrl.Log.WithName("controllers").WithName("Collector"),
-		Scheme:            mgr.GetScheme(),
-		AWSConfig:         awsConfig,
-		OccurrenceCreator: occurrenceCreator,
-		Workers:           make(map[string]*controllers.CollectorWorker),
-		WebhookHandlers:   handlers,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Collector")
-		os.Exit(1)
+	if enableAttester {
+		attesters := &controllers.AttesterReconciler{
+			Client:    mgr.GetClient(),
+			Log:       ctrl.Log.WithName("controllers").WithName("Attester"),
+			Scheme:    mgr.GetScheme(),
+			Attesters: make(map[string]attester.Attester),
+		}
+		if err = attesters.SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Attester")
+			os.Exit(1)
+		}
+
+		occurrenceCreator := attester.NewAttestWrapper(ctrl.Log.WithName("attester").WithName("AttestWrapper"), grafeasClient, grafeasClient, attesters, aem)
+
+		handlers := make(map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator))
+		webhookMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
+			path := request.URL.Path[1:]
+	
+			if handler, ok := handlers[path]; ok {
+				handler(writer, request, occurrenceCreator)
+			} else {
+				writer.WriteHeader(http.StatusNotFound)
+			}
+		})
+
+		if err = (&controllers.CollectorReconciler{
+			Client:            mgr.GetClient(),
+			Log:               ctrl.Log.WithName("controllers").WithName("Collector"),
+			Scheme:            mgr.GetScheme(),
+			AWSConfig:         awsConfig,
+			OccurrenceCreator: occurrenceCreator,
+			Workers:           make(map[string]*controllers.CollectorWorker),
+			WebhookHandlers:   handlers,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Collector")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
-	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), attesters, grafeasClient, mgr.GetClient())
+	if enableEnforcer {
+		if err = (&controllers.EnforcerReconciler{
+			Client: mgr.GetClient(),
+			Log:    ctrl.Log.WithName("controllers").WithName("Enforcer"),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "Enforcer")
+			os.Exit(1)
+		}
+
+		if err = (&controllers.ClusterEnforcerReconciler{
+			Client:       mgr.GetClient(),
+			Log:          ctrl.Log.WithName("controllers").WithName("ClusterEnforcer"),
+			Scheme:       mgr.GetScheme(),
+			EventManager: aem,
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "ClusterEnforcer")
+			os.Exit(1)
+		}
+
+		enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), /*attesters,*/ grafeasClient, mgr.GetClient())
+		mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
+	}
 
 	checker := func(req *http.Request) error {
 		return nil
@@ -160,14 +207,6 @@ func main() {
 
 	_ = mgr.AddHealthzCheck("test", checker)
 	_ = mgr.AddReadyzCheck("test", checker)
-	mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
-
-	go func() {
-		if err := webhookServer.ListenAndServe(); err != nil {
-			setupLog.Error(err, "error starting webhook server")
-			os.Exit(1)
-		}
-	}()
 
 	signalHandler := ctrl.SetupSignalHandler()
 	controllerSignalHandler := make(chan struct{})

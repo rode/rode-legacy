@@ -83,3 +83,45 @@ profiles:
         rbac:
           serviceAccountAnnotations:
               eks.amazonaws.com/role-arn: arn:aws:iam::489130170427:role/RodeServiceAccount
+
+// Deploy Rode without enforcer `skaffold run -p local,policy`
+- name: policy
+  patches:
+  - op: replace
+    path: /deploy/helm/releases/0/name
+    value: rode-policy
+  - op: replace
+    path: /deploy/helm/releases/0/namespace
+    value: rode-policy
+  - op: add
+    path: /deploy/helm/releases/0/overrides/attesters
+    value:
+      enabled: true
+  - op: add
+    path: /deploy/helm/releases/0/overrides/enforcer
+    value:
+      enabled: false
+
+// Deploy Rode with only enforcer `skaffold run -p local,enforcer`
+- name: enforcer
+  patches:
+  - op: replace
+    path: /deploy/helm/releases/0/name
+    value: rode-enforcer
+  - op: replace
+    path: /deploy/helm/releases/0/namespace
+    value: rode-enforcer
+  - op: add
+    path: /deploy/helm/releases/0/overrides/attesters
+    value:
+      enabled: false
+  - op: add
+    path: /deploy/helm/releases/0/overrides/enforcer
+    value:
+      enabled: true
+  - op: replace
+    path: /deploy/helm/releases/0/overrides/service/nodePort
+    value: 31444
+  - op: replace
+    path: /deploy/helm/releases/0/overrides/grafeas/service/nodePort
+    value: 31445

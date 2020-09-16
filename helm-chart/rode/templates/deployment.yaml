@@ -30,6 +30,10 @@ spec:
           - name: certificates
             mountPath: /certificates
           env:
+            - name: ENABLE_ATTESTER
+              value: {{ quote .Values.attesters.enabled }}
+            - name: ENABLE_ENFORCER
+              value: {{ quote .Values.enforcer.enabled }}
             - name: AWS_REGION
               value: {{ .Values.region }}
             - name: GIN_MODE
@@ -39,7 +43,7 @@ spec:
             - name: EVENT_STREAMER_TYPE
               value: {{ .Values.event_streamer.type | default  (printf "jetstream") }}
             - name: EVENT_STREAMER_ENDPOINT
-              value: {{ .Values.event_streamer.endpoint | default  (printf "rode-jetstream.%s.svc.cluster.local" .Release.Namespace) }}
+              value: {{ .Values.event_streamer.endpoint | default  (printf "%s-jetstream.%s.svc.cluster.local" .Release.Name .Release.Namespace) }}
             - name: TLS_CA_CERT
               value: /certificates/ca.crt
             - name: TLS_CLIENT_CERT
