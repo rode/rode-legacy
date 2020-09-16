@@ -18,6 +18,10 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatchevents"
+	"github.com/aws/aws-sdk-go/service/ecr"
+	"github.com/aws/aws-sdk-go/service/sqs"
 	"net/http"
 	"strings"
 
@@ -92,7 +96,17 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	} else {
 		switch col.Spec.CollectorType {
 		case "ecr":
-			c = collector.NewEcrEventCollector(r.Log, r.AWSConfig, col.Spec.ECR.QueueName)
+			ses, err := session.NewSession(r.AWSConfig)
+			if err != nil {
+				log.Error(err, "error creating AWS session")
+				return ctrl.Result{}, err
+			}
+
+			sqsSvc := sqs.New(ses)
+			cweSvc := cloudwatchevents.New(ses)
+			ecrSvc := ecr.New(ses)
+
+			c = collector.NewEcrEventCollector(r.Log, col.Spec.ECR.QueueName, sqsSvc, cweSvc, ecrSvc)
 		case "harbor":
 			secret, err := r.getHarborSecret(ctx, col.Spec.Harbor.Secret)
 			if err != nil {
