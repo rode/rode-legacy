@@ -147,8 +147,7 @@ var _ = Context("enforcers", func() {
 				destroyAttester(ctx, attesterName, namespace.Name)
 			})
 
-			// Skipping until enforcer creation populates a signer for the enforcer's Handle method to use
-			XIt("should not allow a pod to be scheduled if there are no attestations", func() {
+			It("should not allow a pod to be scheduled if there are no attestations", func() {
 				pod := corev1.Pod{
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: namespace.Name,
@@ -168,7 +167,8 @@ var _ = Context("enforcers", func() {
 				Expect(admissionResponse.Allowed).To(BeFalse())
 			})
 
-			It("should allow a pod to be scheduled if there is an attestation", func() {
+			// Skipping until enforcer creation populates a signer for the enforcer's Handle method to use
+			XIt("should allow a pod to be scheduled if there is an attestation", func() {
 				attestRequest := &attester.AttestRequest{
 					ResourceURI: imageName,
 					Occurrences: []*grafeas.Occurrence{
