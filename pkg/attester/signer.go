@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"io/ioutil"
 
@@ -46,6 +47,35 @@ func ReadSigner(in io.Reader) (Signer, error) {
 	return &signer{
 		entity,
 	}, nil
+}
+
+type SignerList interface {
+	Add(string, Signer)
+	Get(string) (Signer, error)
+	GetAll() map[string]Signer
+}
+
+type signerList struct {
+	signers map[string]Signer
+}
+
+func NewSignerList() SignerList {
+	return &signerList{}
+}
+
+func (sl *signerList) Add(attesterName string, signer Signer) {
+	sl.signers[attesterName] = signer
+}
+
+func (sl *signerList) Get(attesterName string) (Signer, error) {
+	if signer, ok := sl.signers[attesterName]; ok == true {
+		return signer, nil
+	}
+	return nil, fmt.Errorf("no signer for attester '%s'", attesterName)
+}
+
+func (sl *signerList) GetAll() map[string]Signer {
+	return sl.signers
 }
 
 func (s *signer) Sign(message string) (string, error) {

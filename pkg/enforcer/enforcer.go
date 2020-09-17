@@ -32,16 +32,18 @@ type enforcer struct {
 	log              logr.Logger
 	attesterLister   attester.Lister
 	occurrenceLister occurrence.Lister
+	signerList       attester.SignerList
 	client           client.Client
 	decoder          *admission.Decoder
 }
 
 // NewEnforcer creates an enforcer
-func NewEnforcer(log logr.Logger, attesterLister attester.Lister, occurrenceLister occurrence.Lister, c client.Client) Enforcer {
+func NewEnforcer(log logr.Logger, attesterLister attester.Lister, occurrenceLister occurrence.Lister, signerList attester.SignerList, c client.Client) Enforcer {
 	return &enforcer{
 		log,
 		attesterLister,
 		occurrenceLister,
+		signerList,
 		c,
 		nil,
 	}
@@ -134,6 +136,10 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 
 		for _, enforcerAttester := range enforcerAttesters {
 			attested := false
+			signer, err := e.signerList.Get(enforcerAttester.String())
+			if err != nil {
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
 			for _, occ := range occurrenceList.GetOccurrences() {
 				if err = enforcerAttester.Verify(ctx, &attester.VerifyRequest{Occurrence: occ}); err == nil {
 					attested = true
