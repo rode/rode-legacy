@@ -231,6 +231,10 @@ func (s *FakeSigner) Verify(string) (string, error) {
 	return s.name, fmt.Errorf("invalid signer")
 }
 
+func (s *FakeSigner) VerifyAttestation(occurrence *grafeas.Occurrence) error {
+	return fmt.Errorf("invalid signer")
+}
+
 func (s *FakeSigner) KeyID() string {
 	return s.name
 }

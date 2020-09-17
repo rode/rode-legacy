@@ -141,7 +141,7 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 				return admission.Errored(http.StatusInternalServerError, err)
 			}
 			for _, occ := range occurrenceList.GetOccurrences() {
-				if err = enforcerAttester.Verify(ctx, &attester.VerifyRequest{Occurrence: occ}); err == nil {
+				if err = signer.VerifyAttestation(occ); err == nil {
 					attested = true
 					break
 				}
