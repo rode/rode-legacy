@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"io/ioutil"
 
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
@@ -22,33 +21,32 @@ type Signer interface {
 	Sign(string) (string, error)
 	Verify(string) (string, error)
 	KeyID() string
-	Serialize(out io.Writer) error
+	SerializeKeys() ([]byte, error)
+	SerializePublicKey() ([]byte, error)
+	String() string
 	VerifyAttestation(*grafeas.Occurrence) error
 }
 
-// NewSigner creates a new signer
+// Construct Signer with new OpenPGP keys
 func NewSigner(name string) (Signer, error) {
 	config := &packet.Config{
 		DefaultHash: crypto.SHA256,
 	}
-	entity, err := openpgp.NewEntity(name, "", "", config)
+	entity, err := openpgp.NewEntity(name, fmt.Sprintf("Rode Attester %s", name), "", config)
 	if err != nil {
 		return nil, err
 	}
-	return &signer{
-		entity,
-	}, nil
+
+	return &signer{entity}, nil
 }
 
-// ReadSigner creates a signer from reader
-func ReadSigner(in io.Reader) (Signer, error) {
-	entity, err := openpgp.ReadEntity(packet.NewReader(in))
+// Construct Signer from existing OpenPGP keys
+func NewSignerFromKeys(keys []byte) (Signer, error) {
+	entity, err := openpgp.ReadEntity(packet.NewReader(bytes.NewBuffer(keys)))
 	if err != nil {
 		return nil, err
 	}
-	return &signer{
-		entity,
-	}, nil
+	return &signer{entity}, nil
 }
 
 type SignerList interface {
@@ -151,6 +149,27 @@ func (s *signer) KeyID() string {
 	return s.entity.PrimaryKey.KeyIdString()
 }
 
-func (s *signer) Serialize(out io.Writer) error {
-	return s.entity.SerializePrivate(out, nil)
+func (s *signer) SerializeKeys() ([]byte, error) {
+	keys := &bytes.Buffer{}
+	err := s.entity.SerializePrivate(keys, nil)
+	if err != nil {
+		return nil, err
+	}
+	return keys.Bytes(), nil
+}
+
+func (s *signer) SerializePublicKey() ([]byte, error) {
+	key := &bytes.Buffer{}
+	err := s.entity.Serialize(key)
+	if err != nil {
+		return nil, err
+	}
+	return key.Bytes(), nil
+}
+
+func (s *signer) String() string {
+	return fmt.Sprintf(
+		"Signer (Primary Key: %s, Private Key: %s)",
+		s.entity.PrimaryKey.KeyIdShortString(),
+		s.entity.PrivateKey.KeyIdShortString())
 }
