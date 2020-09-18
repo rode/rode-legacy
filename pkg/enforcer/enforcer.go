@@ -47,6 +47,7 @@ func NewEnforcer(log logr.Logger, occurrenceLister occurrence.Lister, signerList
 	}
 }
 
+// GetSignersForNamespace returns a map of Signer objects that correspond to all the Enforcers for a namespace plus all the ClusterEnforcers
 func (e *enforcer) GetSignersForNamespace(ctx context.Context, namespace string) (map[string]attester.Signer, error) {
 	signerList := map[string]attester.Signer{}
 
