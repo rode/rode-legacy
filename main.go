@@ -153,7 +153,7 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	signerList := attester.NewSignerList()
-	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), attesters, grafeasClient, signerList, mgr.GetClient())
+	enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), grafeasClient, signerList, mgr.GetClient())
 
 	checker := func(req *http.Request) error {
 		return nil
