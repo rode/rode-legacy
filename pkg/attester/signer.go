@@ -68,7 +68,7 @@ func (sl *signerList) Add(attesterName string, signer Signer) {
 }
 
 func (sl *signerList) Get(attesterName string) (Signer, error) {
-	if signer, ok := sl.signers[attesterName]; ok == true {
+	if signer, ok := sl.signers[attesterName]; ok {
 		return signer, nil
 	}
 	return nil, fmt.Errorf("no signer for attester '%s'", attesterName)
