@@ -58,7 +58,7 @@ func (i *ecrCollector) Reconcile(ctx context.Context, name types.NamespacedName)
 		return err
 	}
 
-	err = i.reconcileCWEvent(ctx)
+	err = i.reconcileCWEventRule(ctx)
 	if err != nil {
 		return err
 	}
@@ -135,7 +135,7 @@ func (i *ecrCollector) Start(ctx context.Context, stopChan chan interface{}, occ
 	return nil
 }
 
-func (i *ecrCollector) reconcileCWEvent(ctx context.Context) error {
+func (i *ecrCollector) reconcileCWEventRule(ctx context.Context) error {
 	if i.ruleComplete {
 		return nil
 	}
