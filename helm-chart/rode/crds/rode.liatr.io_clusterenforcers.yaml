@@ -8,13 +8,17 @@ metadata:
   creationTimestamp: null
   name: clusterenforcers.rode.liatr.io
 spec:
+  additionalPrinterColumns:
+    - JSONPath: .status.conditions[?(@.type=="Listener")].status
+      name: Listener
+      type: string  
   group: rode.liatr.io
   names:
     kind: ClusterEnforcer
     listKind: ClusterEnforcerList
     plural: clusterenforcers
     singular: clusterenforcer
-  scope: Namespaced
+  scope: Cluster
   validation:
     openAPIV3Schema:
       description: ClusterEnforcer is the Schema for the clusterenforcers API
