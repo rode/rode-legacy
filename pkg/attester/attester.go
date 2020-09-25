@@ -32,6 +32,7 @@ func NewAttester(name string, policy Policy, signer Signer) Attester {
 type Attester interface {
 	Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error)
 	Verify(ctx context.Context, req *VerifyRequest) error
+	Name() string
 	String() string
 }
 
@@ -56,7 +57,7 @@ func (ve ViolationError) Error() string {
 }
 
 func (a *attester) String() string {
-	return a.name
+	return fmt.Sprintf("Attester %s (%s)", a.name, a.signer)
 }
 
 // Attest takes a list of Occurrences and uses the Attester's policy to determine how many violations have occurred,
@@ -126,6 +127,10 @@ func (a *attester) Verify(ctx context.Context, req *VerifyRequest) error {
 		return fmt.Errorf("Signature body doesn't match")
 	}
 	return nil
+}
+
+func (a *attester) Name() string {
+	return a.name
 }
 
 type occurrenceInput struct {

@@ -20,19 +20,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type EnforcerInterface interface {
+	metav1.ObjectMetaAccessor
+	Attesters() []*EnforcerAttester
+	Conditioner
+	SetCondition(ConditionType, ConditionStatus, string)
+	GetConditionStatus(ConditionType) ConditionStatus
+}
+
 // EnforcerSpec defines the desired state of Enforcer
 type EnforcerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Enforcer. Edit Enforcer_types.go to remove/update
 	Attesters []*EnforcerAttester `json:"attesters"`
 }
 
 // EnforcerStatus defines the observed state of Enforcer
 type EnforcerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -45,6 +48,26 @@ type Enforcer struct {
 
 	Spec   EnforcerSpec   `json:"spec,omitempty"`
 	Status EnforcerStatus `json:"status,omitempty"`
+}
+
+func (e *Enforcer) Attesters() []*EnforcerAttester {
+	return e.Spec.Attesters
+}
+
+func (e *Enforcer) SetConditions(conditions []Condition) {
+	e.Status.Conditions = conditions
+}
+
+func (e *Enforcer) GetConditions() []Condition {
+	return e.Status.Conditions
+}
+
+func (e *Enforcer) SetCondition(conditionType ConditionType, conditionStatus ConditionStatus, message string) {
+	SetCondition(e, conditionType, conditionStatus, message)
+}
+
+func (e *Enforcer) GetConditionStatus(conditionType ConditionType) ConditionStatus {
+	return GetConditionStatus(e, conditionType)
 }
 
 // +kubebuilder:object:root=true

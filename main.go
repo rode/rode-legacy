@@ -104,14 +104,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	switch os.Getenv("EVENT_STREAMER_TYPE") {
-	case "jetstream":
-		aem = &eventmanager.JetstreamClient{URL: os.Getenv("EVENT_STREAMER_ENDPOINT"), Log: ctrl.Log.WithName("EventManagerJetstream")}
-	default:
-		setupLog.Error(err, "unable to determine event_streamer type")
-		os.Exit(1)
-	}
-
 	awsConfig := aws.NewAWSConfig(ctrl.Log.WithName("aws").WithName("AWSConfig"))
 
 	grafeasTLSConfig, err := grafeasTLSConfig(setupLog)
@@ -122,6 +114,17 @@ func main() {
 	grafeasClient, err := occurrence.NewGrafeasClient(ctrl.Log.WithName("occurrence").WithName("GrafeasClient"), grafeasTLSConfig, os.Getenv("GRAFEAS_ENDPOINT"))
 	if err != nil {
 		setupLog.Error(err, "error initializing grafeas client")
+		os.Exit(1)
+	}
+
+	switch os.Getenv("EVENT_STREAMER_TYPE") {
+	case "jetstream":
+		aem = eventmanager.NewJetstreamClient(
+			ctrl.Log, 
+			os.Getenv("EVENT_STREAMER_ENDPOINT"), 
+			grafeasClient)
+	default:
+		setupLog.Error(err, "unable to determine event_streamer type")
 		os.Exit(1)
 	}
 
@@ -178,26 +181,22 @@ func main() {
 	// +kubebuilder:scaffold:builder
 
 	if enableEnforcer {
+
 		if err = (&controllers.EnforcerReconciler{
-			Client: mgr.GetClient(),
-			Log:    ctrl.Log.WithName("controllers").WithName("Enforcer"),
-			Scheme: mgr.GetScheme(),
+			Client:       mgr.GetClient(),
+			Log:          ctrl.Log.WithName("controllers").WithName("Enforcer"),
+			Scheme:       mgr.GetScheme(),
+			EventManager: aem,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Enforcer")
 			os.Exit(1)
 		}
 
-		if err = (&controllers.ClusterEnforcerReconciler{
-			Client:       mgr.GetClient(),
-			Log:          ctrl.Log.WithName("controllers").WithName("ClusterEnforcer"),
-			Scheme:       mgr.GetScheme(),
-			EventManager: aem,
-		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "ClusterEnforcer")
-			os.Exit(1)
+		// remove this after merging in changes enforcer signer changes
+		attesters := &controllers.AttesterReconciler{
+			Attesters: make(map[string]attester.Attester),
 		}
-
-		enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), /*attesters,*/ grafeasClient, mgr.GetClient())
+		enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), attesters, grafeasClient, mgr.GetClient())
 		mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 	}
 

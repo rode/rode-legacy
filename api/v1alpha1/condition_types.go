@@ -26,6 +26,7 @@ const (
 	ConditionActive   ConditionType = "Active"
 	ConditionCompiled ConditionType = "Policy"
 	ConditionSecret   ConditionType = "Key"
+	ConditionListener ConditionType = "Listener"
 )
 
 // +k8s:deepcopy-gen=false
