@@ -144,8 +144,6 @@ apiVersion: rode.liatr.io/v1alpha1
 kind: Collector
 metadata: 
   name: harborCollector
-  finalizers:
-  - collectors.finalizers.rode.liatr.io
 spec:
   harbor:
     harborUrl: "https://example.com"
