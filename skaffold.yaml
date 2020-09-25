@@ -30,6 +30,7 @@ profiles:
   activation:
     - kubeContext: docker-for-desktop
     - kubeContext: docker-desktop
+    - kubeContext: minikube
   patches:
     - op: add
       path: /deploy/helm/releases/0/namespace
@@ -63,6 +64,12 @@ profiles:
           value: rode-localstack:4587
         - name: OPA_TRACE
           value: "0"
+    - op: add
+      path: /portForward/0/namespace
+      value: rode
+    - op: add
+      path: /portForward/1/namespace
+      value: rode
 
 - name: production
   patches:

@@ -154,6 +154,13 @@ spec:
 ```
 
 # Development
+
+## Tools Required
+1. [skaffold](https://skaffold.dev/docs/install/) >= 1.14.0
+2. [helm](https://helm.sh/docs/intro/install/) >= 3.1.0
+3. Kubernetes (docker-for-desktop,minikube,etc)
+
+## Setup
 To run locally, install CRDs, then use skaffold with the `local` profile:
 
 To install CRDs (Only needs to be run once):
@@ -162,15 +169,23 @@ To install CRDs (Only needs to be run once):
 make install
 ```
 
+Create `rode` namespace:
+
+```bash
+kubectl create ns rode
+```
+
 To run controllers:
 
-```shell
-skaffold dev --port-forward
+```shell                                   
+skaffold dev -p local --port-forward
 ```
 
 This will also run [localstack](https://github.com/localstack/localstack) to mock services such as SQS.
 
 Setup collectors, attesters and enforcers:
+
+## Running an example
 
 ```shell
 kubectl apply -f examples/aws-quickstart.yaml
