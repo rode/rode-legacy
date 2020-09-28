@@ -10,7 +10,3 @@ type EventManager interface {
 	Unsubscribe(attesterName string) (error)
 }
 
-// type Consumer interface {
-// 	Name() string
-// 	Attestation() *grafeas.Occurrence
-// }
