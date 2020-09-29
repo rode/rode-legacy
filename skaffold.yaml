@@ -98,6 +98,10 @@ profiles:
     value:
       enabled: true
   - op: add
+    path: /deploy/helm/releases/0/overrides/jetstream
+    value:
+      enabled: true
+  - op: add
     path: /deploy/helm/releases/0/overrides/enforcer
     value:
       enabled: false
@@ -134,6 +138,7 @@ profiles:
     value:
       enabled: false
   - op: add
-    path: /deploy/helm/releases/0/overrides/event_streamer
+    path: /deploy/helm/releases/0/overrides/eventStreamer
     value:
+      type: jetstream
       endpoint: rode-policy-jetstream.rode-policy.svc.cluster.local

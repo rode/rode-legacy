@@ -30,3 +30,13 @@ Create chart name and version as used by the chart label.
 {{- define "rode.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
+
+{{- define "rode.env" -}}
+{{- if or .Values.eventStreamer.type .Values.jetstream.enabled -}}
+{{- $jetstreamEndpoint := printf "%s-jetstream.%s.svc.cluster.local" .Release.Name .Release.Namespace -}}
+- name: EVENT_STREAMER_TYPE
+  value: {{ default "jetstream" .Values.eventStreamer.type }}
+- name: EVENT_STREAMER_ENDPOINT
+  value: {{ default $jetstreamEndpoint .Values.eventStreamer.endpoint }}
+{{- end -}}
+{{- end -}}

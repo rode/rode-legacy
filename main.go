@@ -124,8 +124,8 @@ func main() {
 			os.Getenv("EVENT_STREAMER_ENDPOINT"), 
 			grafeasClient)
 	default:
-		setupLog.Error(err, "unable to determine event_streamer type")
-		os.Exit(1)
+		aem = eventmanager.NewEventManagerNone(ctrl.Log)
+		setupLog.Info("Using dummy event manager")
 	}
 
 	webhookMux := http.NewServeMux()
