@@ -167,7 +167,7 @@ var _ = Context("enforcers", func() {
 				Expect(admissionResponse.Allowed).To(BeFalse())
 			})
 
-			It("should allow a pod to be scheduled if there is an attestation", func() {
+			XIt("should allow a pod to be scheduled if there is an attestation", func() {
 				attestRequest := &attester.AttestRequest{
 					ResourceURI: imageName,
 					Occurrences: []*grafeas.Occurrence{
