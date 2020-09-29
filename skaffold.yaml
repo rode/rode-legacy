@@ -19,12 +19,9 @@ deploy:
 portForward:
 - resourceType: service
   resourceName: rode
+  namespace: rode
   port: 443
   localPort: 9443
-- resourceType: service
-  resourceName: rode-jetstream
-  port: 4222
-  localPort: 4222
 profiles:
 - name: local
   activation:
@@ -63,27 +60,6 @@ profiles:
           value: rode-localstack:4587
         - name: OPA_TRACE
           value: "0"
-
-- name: production
-  patches:
-    - op: add
-      path: /deploy/helm/flags
-      value: 
-        global:
-          - '--tiller-namespace'
-          - 'rode'
-    - op: add
-      path: /deploy/helm/releases/0/namespace
-      value: rode
-    - op: add
-      path: /deploy/helm/releases/0/overrides
-      value:
-        image:
-          pullPolicy: Always
-        rbac:
-          serviceAccountAnnotations:
-              eks.amazonaws.com/role-arn: arn:aws:iam::489130170427:role/RodeServiceAccount
-
 # Deploy Rode without enforcer `skaffold run -p local,policy`
 - name: policy
   patches:
@@ -109,7 +85,6 @@ profiles:
     path: /deploy/helm/releases/0/overrides/localstack
     value:
       enabled: false
-
 # Deploy Rode with only enforcer `skaffold run -p local,enforcer`
 - name: enforcer
   patches:
@@ -142,3 +117,22 @@ profiles:
     value:
       type: jetstream
       endpoint: rode-policy-jetstream.rode-policy.svc.cluster.local
+- name: production
+  patches:
+    - op: add
+      path: /deploy/helm/flags
+      value: 
+        global:
+          - '--tiller-namespace'
+          - 'rode'
+    - op: add
+      path: /deploy/helm/releases/0/namespace
+      value: rode
+    - op: add
+      path: /deploy/helm/releases/0/overrides
+      value:
+        image:
+          pullPolicy: Always
+        rbac:
+          serviceAccountAnnotations:
+              eks.amazonaws.com/role-arn: arn:aws:iam::489130170427:role/RodeServiceAccount
