@@ -3,7 +3,7 @@
 # Declare variables to be passed into your templates.
 image:
   repository: localstack/localstack
-  tag: latest
+  tag: 0.10.7
   pullPolicy: IfNotPresent
 
 debug: false
