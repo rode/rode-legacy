@@ -119,7 +119,7 @@ func (r *EnforcerReconciler) GetEnforcer(ctx context.Context, req ctrl.Request) 
 
 func (r *EnforcerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	err := ctrl.NewControllerManagedBy(mgr).
-	  For(&rodev1alpha1.Enforcer{}).
+		For(&rodev1alpha1.Enforcer{}).
 		Complete(r)
 	if err != nil {
 		return err

@@ -120,8 +120,8 @@ func main() {
 	switch os.Getenv("EVENT_STREAMER_TYPE") {
 	case "jetstream":
 		aem = eventmanager.NewJetstreamClient(
-			ctrl.Log, 
-			os.Getenv("EVENT_STREAMER_ENDPOINT"), 
+			ctrl.Log,
+			os.Getenv("EVENT_STREAMER_ENDPOINT"),
 			grafeasClient)
 	default:
 		aem = eventmanager.NewEventManagerNone(ctrl.Log)
@@ -157,7 +157,7 @@ func main() {
 		handlers := make(map[string]func(writer http.ResponseWriter, request *http.Request, occurrenceCreator occurrence.Creator))
 		webhookMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 			path := request.URL.Path[1:]
-	
+
 			if handler, ok := handlers[path]; ok {
 				handler(writer, request, occurrenceCreator)
 			} else {
