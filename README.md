@@ -156,13 +156,7 @@ spec:
 ```
 
 # Development
-To run locally, install CRDs, then use skaffold with the `local` profile:
-
-To install CRDs (Only needs to be run once):
-
-```shell
-make install
-```
+To run locally you need to have Docker for Desktop running and your k8s context set to `docker-desktop`. Skaffold will automatically use the `local` profile which installs [LocalStack](https://github.com/localstack/localstack) to test the AWS ECR collector by mocking the SQS service.
 
 To run controllers:
 
@@ -170,15 +164,13 @@ To run controllers:
 skaffold dev --port-forward
 ```
 
-This will also run [localstack](https://github.com/localstack/localstack) to mock services such as SQS.
-
 Setup collectors, attesters and enforcers:
 
 ```shell
 kubectl apply -f examples/aws-quickstart.yaml
 ```
 
-To create an occurence, use the aws cli to send a test message to localstack:
+To create an occurrence, use the aws cli to send a test message to LocalStack:
 
 ```shell
 aws sqs send-message \
@@ -186,3 +178,36 @@ aws sqs send-message \
     --queue-url http://localhost:30576/queue/rode-ecr-event-collector  \
     --message-body file://test/sample_scan_event.json 
 ``` 
+
+## Testing
+
+To run unit tests 
+
+```shell
+go test -cover -tags unit ./...
+```
+
+To run unit and integration tests Rode and LocalStack must be running. Follow the local development instructions above.
+```shell
+go test ./...
+```
+
+## Testing Multi-Cluster Communication
+
+You can test separating the policy and enforcement features of Rode by running both locally. This will deploy different instances of Rode into two different namespaces (`rode-policy` and `rode-enforcement`) so you can test the communication between the two instances.
+
+**Deploy the policy Rode instance**
+
+```shell
+skaffold run -p local,policy
+```
+
+This will deploy Rode with Collector and Attester controllers and deploy the messaging service [Jetstream](https://github.com/nats-io/jetstream)
+
+**Deploy the enforcement Rode instance**
+
+```shell
+skaffold run -p local,enforcement
+```
+
+This will deploy Rode with Enforcer and Cluster Enforcer controllers and the enforcer validating webhook. 
