@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
+	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/packet"
 )
@@ -23,6 +24,7 @@ type Signer interface {
 	SerializeKeys() ([]byte, error)
 	SerializePublicKey() ([]byte, error)
 	String() string
+	VerifyAttestation(*grafeas.Occurrence) error
 }
 
 // Construct Signer with new OpenPGP keys
@@ -45,6 +47,35 @@ func NewSignerFromKeys(keys []byte) (Signer, error) {
 		return nil, err
 	}
 	return &signer{entity}, nil
+}
+
+type SignerList interface {
+	Add(string, Signer)
+	Get(string) (Signer, error)
+	GetAll() map[string]Signer
+}
+
+type signerList struct {
+	signers map[string]Signer
+}
+
+func NewSignerList() SignerList {
+	return &signerList{}
+}
+
+func (sl *signerList) Add(attesterName string, signer Signer) {
+	sl.signers[attesterName] = signer
+}
+
+func (sl *signerList) Get(attesterName string) (Signer, error) {
+	if signer, ok := sl.signers[attesterName]; ok {
+		return signer, nil
+	}
+	return nil, fmt.Errorf("no signer for attester '%s'", attesterName)
+}
+
+func (sl *signerList) GetAll() map[string]Signer {
+	return sl.signers
 }
 
 func (s *signer) Sign(message string) (string, error) {
@@ -94,6 +125,24 @@ func (s *signer) Verify(signedMessage string) (string, error) {
 		return "", message.SignatureError
 	}
 	return string(b), nil
+}
+
+func (s *signer) VerifyAttestation(occurrence *grafeas.Occurrence) error {
+	if occurrence == nil || occurrence.GetAttestation() == nil {
+		return fmt.Errorf("occurrence is not an attestation")
+	}
+
+	if s.KeyID() != occurrence.GetAttestation().GetAttestation().GetPgpSignedAttestation().GetPgpKeyId() {
+		return fmt.Errorf("invalid keyID")
+	}
+	body, err := s.Verify(occurrence.GetAttestation().GetAttestation().GetPgpSignedAttestation().GetSignature())
+	if err != nil {
+		return err
+	}
+	if body != occurrence.GetResource().GetUri() {
+		return fmt.Errorf("signature body doesn't match")
+	}
+	return nil
 }
 
 func (s *signer) KeyID() string {

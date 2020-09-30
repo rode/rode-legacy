@@ -192,11 +192,12 @@ func main() {
 			os.Exit(1)
 		}
 
-		// remove this after merging in changes enforcer signer changes
-		attesters := &controllers.AttesterReconciler{
-			Attesters: make(map[string]attester.Attester),
-		}
-		enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), attesters, grafeasClient, mgr.GetClient())
+		// // remove this after merging in changes enforcer signer changes
+		// attesters := &controllers.AttesterReconciler{
+		// 	Attesters: make(map[string]attester.Attester),
+		// }
+		signerList := attester.NewSignerList()
+		enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), grafeasClient, signerList, mgr.GetClient())
 		mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 	}
 

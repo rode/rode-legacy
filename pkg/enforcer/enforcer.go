@@ -30,77 +30,72 @@ type Enforcer interface {
 
 type enforcer struct {
 	log              logr.Logger
-	attesterLister   attester.Lister
 	occurrenceLister occurrence.Lister
+	signerList       attester.SignerList
 	client           client.Client
 	decoder          *admission.Decoder
 }
 
 // NewEnforcer creates an enforcer
-func NewEnforcer(log logr.Logger, attesterLister attester.Lister, occurrenceLister occurrence.Lister, c client.Client) Enforcer {
+func NewEnforcer(log logr.Logger, occurrenceLister occurrence.Lister, signerList attester.SignerList, c client.Client) Enforcer {
 	return &enforcer{
 		log,
-		attesterLister,
 		occurrenceLister,
+		signerList,
 		c,
 		nil,
 	}
 }
 
-func (e *enforcer) AddEnforcerAttesters(ctx context.Context, enforcerAttesters map[string]attester.Attester, namespace string) error {
-	// get all attesters
-	attesters := e.attesterLister.ListAttesters()
+// GetSignersForNamespace returns a map of Signer objects that correspond to all the Enforcers for a namespace plus all the ClusterEnforcers
+func (e *enforcer) GetSignersForNamespace(ctx context.Context, namespace string) (map[string]attester.Signer, error) {
+	signerList := map[string]attester.Signer{}
 
 	// get enforcers
 	enforcers := &rodev1alpha1.EnforcerList{}
 	err := e.client.List(ctx, enforcers, client.InNamespace(namespace))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, enforcer := range enforcers.Items {
 		for _, enforcerAttester := range enforcer.Spec.Attesters {
-			a, attesterExists := attesters[enforcerAttester.String()]
-			if !attesterExists {
-				return fmt.Errorf("enforcer %s/%s requires attester %s which does not exist", enforcer.Namespace, enforcer.Name, enforcerAttester.String())
+			signer, err := e.signerList.Get(enforcerAttester.String())
+			if err != nil {
+				return nil, fmt.Errorf("enforcer %s/%s requires attester %s which does not exist", enforcer.Namespace, enforcer.Name, enforcerAttester.String())
 			}
 
-			_, enforcerAttesterExists := enforcerAttesters[enforcerAttester.String()]
+			_, enforcerAttesterExists := signerList[enforcerAttester.String()]
 			if !enforcerAttesterExists {
-				enforcerAttesters[enforcerAttester.String()] = a
+				signerList[enforcerAttester.String()] = signer
 			}
 		}
 	}
 
-	return nil
-}
-
-func (e *enforcer) AddClusterEnforcerAttesters(ctx context.Context, enforcerAttesters map[string]attester.Attester, namespace string) error {
-	// get all attesters
-	attesters := e.attesterLister.ListAttesters()
-
+	// get cluster enforcers
 	clusterEnforcers := &rodev1alpha1.ClusterEnforcerList{}
-	err := e.client.List(ctx, clusterEnforcers)
+	err = e.client.List(ctx, clusterEnforcers)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, clusterEnforcer := range clusterEnforcers.Items {
 		if clusterEnforcer.EnforcesNamespace(namespace) {
 			for _, clusterEnforcerAttester := range clusterEnforcer.Spec.Attesters {
-				a, attesterExists := attesters[clusterEnforcerAttester.String()]
-				if !attesterExists {
-					return fmt.Errorf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String())
+				signer, err := e.signerList.Get(clusterEnforcerAttester.String())
+				if err != nil {
+					return nil, fmt.Errorf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String())
 				}
 
-				_, enforcerAttesterExists := enforcerAttesters[clusterEnforcerAttester.String()]
+				_, enforcerAttesterExists := signerList[clusterEnforcerAttester.String()]
 				if !enforcerAttesterExists {
-					enforcerAttesters[clusterEnforcerAttester.String()] = a
+					signerList[clusterEnforcerAttester.String()] = signer
 				}
 			}
 		}
 	}
-	return nil
+
+	return signerList, nil
 }
 
 func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.Response {
@@ -112,14 +107,8 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 
 	e.log.Info("handling enforcement request", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
 
-	enforcerAttesters := make(map[string]attester.Attester)
+	enforcerAttesters, err := e.GetSignersForNamespace(ctx, pod.Namespace)
 
-	err = e.AddEnforcerAttesters(ctx, enforcerAttesters, pod.Namespace)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	err = e.AddClusterEnforcerAttesters(ctx, enforcerAttesters, pod.Namespace)
 	if err != nil {
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
@@ -134,8 +123,12 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 
 		for _, enforcerAttester := range enforcerAttesters {
 			attested := false
+			signer, err := e.signerList.Get(enforcerAttester.String())
+			if err != nil {
+				return admission.Errored(http.StatusInternalServerError, err)
+			}
 			for _, occ := range occurrenceList.GetOccurrences() {
-				if err = enforcerAttester.Verify(ctx, &attester.VerifyRequest{Occurrence: occ}); err == nil {
+				if err = signer.VerifyAttestation(occ); err == nil {
 					attested = true
 					break
 				}
