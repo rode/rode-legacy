@@ -17,6 +17,8 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,6 +28,7 @@ import (
 
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
 	"github.com/liatrio/rode/pkg/eventmanager"
+	"github.com/liatrio/rode/pkg/attester"
 )
 
 const EnforcerFinalizer = "enforcer.finalizers.rode.liatr.io"
@@ -36,6 +39,7 @@ type EnforcerReconciler struct {
 	Log          logr.Logger
 	Scheme       *runtime.Scheme
 	EventManager eventmanager.EventManager
+	SignerList   attester.SignerList
 }
 
 func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
@@ -50,7 +54,10 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Determin if deleting
 	if enforcer.GetObjectMeta().GetDeletionTimestamp().IsZero() {
+
+		// not deletion logic
 		if !containsFinalizer(enforcer.GetObjectMeta().GetFinalizers(), EnforcerFinalizer) {
 			r.Log.Info("Adding finalizer")
 			enforcer.GetObjectMeta().SetFinalizers(append(enforcer.GetObjectMeta().GetFinalizers(), EnforcerFinalizer))
@@ -61,10 +68,12 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 		}
 	} else {
+
+		// resource deletion logic
 		if containsFinalizer(enforcer.GetObjectMeta().GetFinalizers(), EnforcerFinalizer) {
 			r.Log.Info("Unsubscribing from attesters")
-			for _, attester := range enforcer.Attesters() {
-				if err = r.EventManager.Unsubscribe(types.NamespacedName{Name: attester.Name, Namespace: attester.Namespace}.String()); err != nil {
+			for _, enforcerAttester := range enforcer.Attesters() {
+				if err = r.EventManager.Unsubscribe(types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String()); err != nil {
 					return ctrl.Result{}, err
 				}
 			}
@@ -79,9 +88,10 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
+
 	if listenerStatus := enforcer.GetConditionStatus(rodev1alpha1.ConditionListener); listenerStatus != rodev1alpha1.ConditionStatusTrue {
-		for _, attester := range enforcer.Attesters() {
-			if err = r.EventManager.Subscribe(types.NamespacedName{Name: attester.Name, Namespace: attester.Namespace}.String()); err != nil {
+		for _, enforcerAttester := range enforcer.Attesters() {
+			if err = r.EventManager.Subscribe(types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String()); err != nil {
 				log.Error(err, "Error subscribing to stream")
 				enforcer.SetCondition(rodev1alpha1.ConditionListener, rodev1alpha1.ConditionStatusFalse, "Subscribe to attester messages failed")
 				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); err != nil {
@@ -98,6 +108,48 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			}
 		}
 	}
+
+	// test for new condition for secret key exists
+	if secretStatus := enforcer.GetConditionStatus(rodev1alpha1.ConditionSecret); secretStatus != rodev1alpha1.ConditionStatusTrue {
+		for _, enforcerAttester := range enforcer.Attesters() {
+			// secret name = "enforcer-{attester_namespace}-{attester_name}
+			// check for secret to exist
+			secretName := fmt.Sprintf("enforcer-%s-%s", enforcerAttester.Namespace, enforcerAttester.Name)
+			secret := &corev1.Secret{}
+			if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: req.Namespace}, secret ) ; err != nil {
+				// secret doesn't exist
+				log.Error(err, fmt.Sprintf("Secret %s not found", secretName))
+				enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("No secret %s found", secretName))
+				if updateErr := r.Update(ctx, enforcer.(runtime.Object)) ; err != nil {
+					log.Error(updateErr, "Error updating enforcer status")
+					return ctrl.Result{}, updateErr
+				}
+				return ctrl.Result{}, err
+			}
+
+			// create signer
+			signer, err := attester.NewSignerFromKeys([]byte(secret.Data["primaryKey"]))
+			if err != nil {
+				log.Error(err, "Failed to read primary key from secret")
+				enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("Failed to read primaryKey from secret from %s", secretName))
+				if updateErr := r.Update(ctx, enforcer.(runtime.Object)) ; err != nil {
+					log.Error(updateErr, "Error updating enforcer status")
+					return ctrl.Result{}, updateErr
+				}
+				return ctrl.Result{}, err
+			}
+			log.Info(fmt.Sprintf("Found signer sig: %s", signer))
+
+			r.SignerList.Add(types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String(), signer)
+
+			enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue, "Found signer secret")
+			if updateErr := r.Update(ctx, enforcer.(runtime.Object)) ; err != nil {
+				log.Error(updateErr, "Error updating enforcer signer status")
+				return ctrl.Result{}, updateErr
+			}
+		}
+	}
+
 
 	return ctrl.Result{}, nil
 }

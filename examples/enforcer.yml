@@ -1,0 +1,12 @@
+apiVersion: rode.liatr.io/v1alpha1
+kind: Enforcer
+metadata:
+  name: default
+  namespace: rode
+spec:
+  namespaces:
+  - default
+  matchStrategy: Include
+  attesters:
+  - namespace: rode
+    name: imagescan
