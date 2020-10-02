@@ -27,8 +27,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	rodev1alpha1 "github.com/liatrio/rode/api/v1alpha1"
-	"github.com/liatrio/rode/pkg/eventmanager"
 	"github.com/liatrio/rode/pkg/attester"
+	"github.com/liatrio/rode/pkg/eventmanager"
 )
 
 const EnforcerFinalizer = "enforcer.finalizers.rode.liatr.io"
@@ -36,10 +36,11 @@ const EnforcerFinalizer = "enforcer.finalizers.rode.liatr.io"
 // EnforcerReconciler reconciles a Enforcer object
 type EnforcerReconciler struct {
 	client.Client
-	Log          logr.Logger
-	Scheme       *runtime.Scheme
-	EventManager eventmanager.EventManager
-	SignerList   attester.SignerList
+	Log           logr.Logger
+	RodeNamespace string
+	Scheme        *runtime.Scheme
+	EventManager  eventmanager.EventManager
+	SignerList    attester.SignerList
 }
 
 func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
@@ -88,13 +89,12 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-
 	if listenerStatus := enforcer.GetConditionStatus(rodev1alpha1.ConditionListener); listenerStatus != rodev1alpha1.ConditionStatusTrue {
 		for _, enforcerAttester := range enforcer.Attesters() {
 			if err = r.EventManager.Subscribe(types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String()); err != nil {
 				log.Error(err, "Error subscribing to stream")
 				enforcer.SetCondition(rodev1alpha1.ConditionListener, rodev1alpha1.ConditionStatusFalse, "Subscribe to attester messages failed")
-				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); err != nil {
+				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
 					log.Error(updateErr, "Error updating enforcer status")
 					return ctrl.Result{}, updateErr
 				}
@@ -116,11 +116,18 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			// check for secret to exist
 			secretName := fmt.Sprintf("enforcer-%s-%s", enforcerAttester.Namespace, enforcerAttester.Name)
 			secret := &corev1.Secret{}
-			if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: req.Namespace}, secret ) ; err != nil {
+			var namespace string
+			if req.Namespace == "" {
+				namespace = r.RodeNamespace
+			} else {
+				namespace = req.Namespace
+			}
+			log.Info("SECRET", "S", types.NamespacedName{Name: secretName, Namespace: namespace})
+			if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
 				// secret doesn't exist
-				log.Error(err, fmt.Sprintf("Secret %s not found", secretName))
+				log.Info(fmt.Sprintf("Secret %s not found", secretName))
 				enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("No secret %s found", secretName))
-				if updateErr := r.Update(ctx, enforcer.(runtime.Object)) ; err != nil {
+				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
 					log.Error(updateErr, "Error updating enforcer status")
 					return ctrl.Result{}, updateErr
 				}
@@ -132,24 +139,23 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			if err != nil {
 				log.Error(err, "Failed to read primary key from secret")
 				enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("Failed to read primaryKey from secret from %s", secretName))
-				if updateErr := r.Update(ctx, enforcer.(runtime.Object)) ; err != nil {
+				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
 					log.Error(updateErr, "Error updating enforcer status")
 					return ctrl.Result{}, updateErr
 				}
 				return ctrl.Result{}, err
 			}
-			log.Info(fmt.Sprintf("Found signer sig: %s", signer))
+			// log.Info("Found signer sig", "signer", signer)
 
 			r.SignerList.Add(types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String(), signer)
 
 			enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue, "Found signer secret")
-			if updateErr := r.Update(ctx, enforcer.(runtime.Object)) ; err != nil {
+			if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
 				log.Error(updateErr, "Error updating enforcer signer status")
 				return ctrl.Result{}, updateErr
 			}
 		}
 	}
-
 
 	return ctrl.Result{}, nil
 }
