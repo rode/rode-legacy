@@ -60,7 +60,9 @@ type signerList struct {
 }
 
 func NewSignerList() SignerList {
-	return &signerList{}
+	return &signerList{
+		signers: map[string]Signer{},
+	}
 }
 
 func (sl *signerList) Add(attesterName string, signer Signer) {
