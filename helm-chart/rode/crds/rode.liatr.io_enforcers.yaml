@@ -8,6 +8,13 @@ metadata:
   creationTimestamp: null
   name: enforcers.rode.liatr.io
 spec:
+  additionalPrinterColumns:
+    - JSONPath: .status.conditions[?(@.type=="Listener")].status
+      name: Listener
+      type: string  
+    - JSONPath: .status.conditions[?(@.type=="Key")].status
+      name: Attester Keys
+      type: string  
   group: rode.liatr.io
   names:
     kind: Enforcer

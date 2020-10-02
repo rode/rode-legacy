@@ -12,6 +12,9 @@ spec:
     - JSONPath: .status.conditions[?(@.type=="Listener")].status
       name: Listener
       type: string  
+    - JSONPath: .status.conditions[?(@.type=="Key")].status
+      name: Attester Keys
+      type: string  
   group: rode.liatr.io
   names:
     kind: ClusterEnforcer
