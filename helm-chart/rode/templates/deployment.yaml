@@ -30,6 +30,10 @@ spec:
           - name: certificates
             mountPath: /certificates
           env:
+            - name: RODE_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             - name: ENABLE_ATTESTER
               value: {{ quote .Values.attesters.enabled }}
             - name: ENABLE_ENFORCER

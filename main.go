@@ -76,6 +76,7 @@ func main() {
 	var enableLeaderElection bool
 	var enableAttester = true
 	var enableEnforcer = true
+	var rodeNamespace = "default"
 	var aem eventmanager.EventManager
 
 	flag.StringVar(&metricsAddr, "metrics-addr", ":9090", "The address the metric endpoint binds to.")
@@ -85,6 +86,7 @@ func main() {
 		"Enable leader election for controller manager. Enabling this will ensure there is only one active controller manager.")
 	flag.BoolVar(&enableAttester, "enable-attester", envBool("ENABLE_ATTESTER", enableAttester), "Enable / disable attester & collector controller")
 	flag.BoolVar(&enableEnforcer, "enable-enforcer", envBool("ENABLE_ENFORCER", enableEnforcer), "Enable / disable enforcer controller")
+	flag.StringVar(&rodeNamespace, "rode-namespace", envString("RODE_NAMESPACE", rodeNamespace), "Namespace rode is running in")
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(func(o *zap.Options) {
@@ -186,9 +188,10 @@ func main() {
 		if err = (&controllers.EnforcerReconciler{
 			Client:       mgr.GetClient(),
 			Log:          ctrl.Log.WithName("controllers").WithName("Enforcer"),
+			RodeNamespace:    rodeNamespace,
 			Scheme:       mgr.GetScheme(),
 			EventManager: aem,
-			SignerList: signerList,
+			SignerList:   signerList,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Enforcer")
 			os.Exit(1)
