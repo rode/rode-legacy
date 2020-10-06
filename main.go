@@ -186,12 +186,12 @@ func main() {
 
 		signerList := attester.NewSignerList()
 		if err = (&controllers.EnforcerReconciler{
-			Client:       mgr.GetClient(),
-			Log:          ctrl.Log.WithName("controllers").WithName("Enforcer"),
-			RodeNamespace:    rodeNamespace,
-			Scheme:       mgr.GetScheme(),
-			EventManager: aem,
-			SignerList:   signerList,
+			Client:        mgr.GetClient(),
+			Log:           ctrl.Log.WithName("controllers").WithName("Enforcer"),
+			RodeNamespace: rodeNamespace,
+			Scheme:        mgr.GetScheme(),
+			EventManager:  aem,
+			SignerList:    signerList,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Enforcer")
 			os.Exit(1)

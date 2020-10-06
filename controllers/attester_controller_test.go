@@ -68,21 +68,29 @@ var _ = Context("attester controller", func() {
 		})
 
 		It("should have created a secret", func() {
-			att := rodev1alpha1.Attester{}
+			Eventually(func() rodev1alpha1.ConditionStatus {
+				att := rodev1alpha1.Attester{}
 
-			err := k8sClient.Get(ctx, types.NamespacedName{
-				Name:      attesterName,
-				Namespace: namespace.Name,
-			}, &att)
+				err := k8sClient.Get(ctx, types.NamespacedName{
+					Name:      attesterName,
+					Namespace: namespace.Name,
+				}, &att)
 
-			Expect(err).ToNot(HaveOccurred(), "error getting test attest", err)
+				Expect(err).ToNot(HaveOccurred(), "error getting test attester", err)
 
-			status := rodev1alpha1.GetConditionStatus(&att, rodev1alpha1.ConditionSecret)
-			Expect(status).To(BeEquivalentTo(rodev1alpha1.ConditionStatusTrue))
+				if err != nil {
+					return rodev1alpha1.ConditionStatusFalse
+				}
+
+				if listenerStatus := rodev1alpha1.GetConditionStatus(&att, rodev1alpha1.ConditionSecret); listenerStatus == rodev1alpha1.ConditionStatusTrue {
+					return listenerStatus
+				}
+				return rodev1alpha1.ConditionStatusFalse
+			}, checkDuration, checkInterval).Should(BeEquivalentTo(rodev1alpha1.ConditionStatusTrue))
 
 			secret := corev1.Secret{}
 
-			err = k8sClient.Get(ctx, types.NamespacedName{
+			err := k8sClient.Get(ctx, types.NamespacedName{
 				Name:      secretName,
 				Namespace: namespace.Name,
 			}, &secret)
