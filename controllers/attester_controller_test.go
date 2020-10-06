@@ -82,10 +82,8 @@ var _ = Context("attester controller", func() {
 					return rodev1alpha1.ConditionStatusFalse
 				}
 
-				for _, cond := range att.Status.Conditions {
-					if cond.Type == rodev1alpha1.ConditionSecret {
-						return cond.Status
-					}
+				if listenerStatus := rodev1alpha1.GetConditionStatus(&att, rodev1alpha1.ConditionSecret); listenerStatus == rodev1alpha1.ConditionStatusTrue {
+					return listenerStatus
 				}
 				return rodev1alpha1.ConditionStatusFalse
 			}, checkDuration, checkInterval).Should(BeEquivalentTo(rodev1alpha1.ConditionStatusTrue))
