@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/liatrio/rode/pkg/eventmanager"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
@@ -39,6 +40,7 @@ type AttesterReconciler struct {
 	Log       logr.Logger
 	Scheme    *runtime.Scheme
 	Attesters *attester.List
+	EventManager  eventmanager.EventManager
 }
 
 // ListAttesters returns a list of Attester objects
@@ -105,6 +107,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	if len(att.Status.Conditions) == 0 {
 		rodev1alpha1.SetCondition(att, rodev1alpha1.ConditionCompiled, rodev1alpha1.ConditionStatusFalse, "")
 		rodev1alpha1.SetCondition(att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, "")
+		rodev1alpha1.SetCondition(att, rodev1alpha1.ConditionInitialized, rodev1alpha1.ConditionStatusFalse, "")
 
 		if err := r.Status().Update(ctx, att); err != nil {
 			log.Error(err, "Unable to initialize attester status")
@@ -131,6 +134,16 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	err = r.EventManager.Initialize(req.NamespacedName.String())
+	if err != nil {
+		_ = r.updateStatus(ctx, att, rodev1alpha1.ConditionInitialized, rodev1alpha1.ConditionStatusFalse)
+		return ctrl.Result{}, err
+	}
+	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionInitialized, rodev1alpha1.ConditionStatusTrue)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -183,6 +196,7 @@ func (r *AttesterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&rodev1alpha1.Attester{}).
 		WithEventFilter(ignoreConditionStatusUpdateToActive(attesterToConditioner, rodev1alpha1.ConditionCompiled)).
 		WithEventFilter(ignoreConditionStatusUpdateToActive(attesterToConditioner, rodev1alpha1.ConditionSecret)).
+		WithEventFilter(ignoreConditionStatusUpdateToActive(attesterToConditioner, rodev1alpha1.ConditionInitialized)).
 		WithEventFilter(ignoreFinalizerUpdate()).
 		WithEventFilter(ignoreDelete()).
 		Complete(r)

@@ -147,6 +147,7 @@ func main() {
 	if enableAttester {
 		attesters := &controllers.AttesterReconciler{
 			Client:    mgr.GetClient(),
+			EventManager: aem,
 			Log:       ctrl.Log.WithName("controllers").WithName("Attester"),
 			Scheme:    mgr.GetScheme(),
 			Attesters: attesterList,
