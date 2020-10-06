@@ -37,10 +37,10 @@ import (
 // AttesterReconciler reconciles a Attester object
 type AttesterReconciler struct {
 	client.Client
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
-	Attesters *attester.List
-	EventManager  eventmanager.EventManager
+	Log          logr.Logger
+	Scheme       *runtime.Scheme
+	Attesters    *attester.List
+	EventManager eventmanager.EventManager
 }
 
 // ListAttesters returns a list of Attester objects
