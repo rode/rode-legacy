@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/packet"
 )
@@ -24,7 +23,6 @@ type Signer interface {
 	SerializeKeys() ([]byte, error)
 	SerializePublicKey() ([]byte, error)
 	String() string
-	VerifyAttestation(*grafeas.Occurrence) error
 }
 
 // NewSigner construct Signer with new OpenPGP keys
@@ -96,24 +94,6 @@ func (s *signer) Verify(signedMessage string) (string, error) {
 		return "", message.SignatureError
 	}
 	return string(b), nil
-}
-
-func (s *signer) VerifyAttestation(occurrence *grafeas.Occurrence) error {
-	if occurrence == nil || occurrence.GetAttestation() == nil {
-		return fmt.Errorf("occurrence is not an attestation")
-	}
-
-	if s.KeyID() != occurrence.GetAttestation().GetAttestation().GetPgpSignedAttestation().GetPgpKeyId() {
-		return fmt.Errorf("invalid keyID")
-	}
-	body, err := s.Verify(occurrence.GetAttestation().GetAttestation().GetPgpSignedAttestation().GetSignature())
-	if err != nil {
-		return err
-	}
-	if body != occurrence.GetResource().GetUri() {
-		return fmt.Errorf("signature body doesn't match")
-	}
-	return nil
 }
 
 func (s *signer) KeyID() string {
