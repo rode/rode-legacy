@@ -112,42 +112,43 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// test for new condition for secret key exists
 	if secretStatus := enforcer.GetConditionStatus(rodev1alpha1.ConditionSecret); secretStatus != rodev1alpha1.ConditionStatusTrue {
 		for _, enforcerAttester := range enforcer.Attesters() {
-			// secret name = "enforcer-{attester_namespace}-{attester_name}
-			// check for secret to exist
-			secretName := fmt.Sprintf("enforcer-%s-%s", enforcerAttester.Namespace, enforcerAttester.Name)
-			secret := &corev1.Secret{}
-			var namespace string
-			if req.Namespace == "" {
-				namespace = r.RodeNamespace
-			} else {
-				namespace = req.Namespace
-			}
-			log.Info("SECRET", "S", types.NamespacedName{Name: secretName, Namespace: namespace})
-			if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
-				// secret doesn't exist
-				log.Info(fmt.Sprintf("Secret %s not found", secretName))
-				enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("No secret %s found", secretName))
-				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
-					log.Error(updateErr, "Error updating enforcer status")
-					return ctrl.Result{}, updateErr
+			attesterName := types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String()
+			if _, exists := r.AttesterList.Get(attesterName); !exists {
+				// check for secret to exist
+				secretName := fmt.Sprintf("enforcer-%s-%s", enforcerAttester.Namespace, enforcerAttester.Name)
+				secret := &corev1.Secret{}
+				var namespace string
+				if req.Namespace == "" {
+					namespace = r.RodeNamespace
+				} else {
+					namespace = req.Namespace
 				}
-				return ctrl.Result{}, err
-			}
-
-			// create signer
-			signer, err := attester.NewSignerFromKeys([]byte(secret.Data["primaryKey"]))
-			if err != nil {
-				log.Error(err, "Failed to read primary key from secret")
-				enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("Failed to read primaryKey from secret from %s", secretName))
-				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
-					log.Error(updateErr, "Error updating enforcer status")
-					return ctrl.Result{}, updateErr
+				if err := r.Get(ctx, types.NamespacedName{Name: secretName, Namespace: namespace}, secret); err != nil {
+					// secret doesn't exist
+					log.Info(fmt.Sprintf("Secret %s not found", secretName))
+					enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("No secret %s found", secretName))
+					if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
+						log.Error(updateErr, "Error updating enforcer status")
+						return ctrl.Result{}, updateErr
+					}
+					return ctrl.Result{}, err
 				}
-				return ctrl.Result{}, err
-			}
 
-			attester := attester.NewAttester(types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String(), nil, signer)
-			r.AttesterList.Add(attester)
+				// create signer
+				signer, err := attester.NewSignerFromKeys(secret.Data["primaryKey"])
+				if err != nil {
+					log.Error(err, "Failed to read primary key from secret")
+					enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusFalse, fmt.Sprintf("Failed to read primaryKey from secret from %s", secretName))
+					if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
+						log.Error(updateErr, "Error updating enforcer status")
+						return ctrl.Result{}, updateErr
+					}
+					return ctrl.Result{}, err
+				}
+	
+				att := attester.NewAttester(attesterName, nil, signer)
+				r.AttesterList.Add(att)	
+			}
 
 			enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue, "Found signer secret")
 			if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {

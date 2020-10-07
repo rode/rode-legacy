@@ -60,8 +60,8 @@ func (e *enforcer) getEnforcerAttesters(ctx context.Context, namespace string) (
 
 	for _, enforcer := range enforcers.Items {
 		for _, enforcerAttester := range enforcer.Spec.Attesters {
-			attester, err := e.attesterList.Get(enforcerAttester.String())
-			if err != nil {
+			attester, exists := e.attesterList.Get(enforcerAttester.String())
+			if !exists {
 				return nil, fmt.Errorf("enforcer %s/%s requires attester %s which does not exist", enforcer.Namespace, enforcer.Name, enforcerAttester.String())
 			}
 
@@ -79,8 +79,8 @@ func (e *enforcer) getEnforcerAttesters(ctx context.Context, namespace string) (
 	for _, clusterEnforcer := range clusterEnforcers.Items {
 		if clusterEnforcer.EnforcesNamespace(namespace) {
 			for _, clusterEnforcerAttester := range clusterEnforcer.Spec.Attesters {
-				attester, err := e.attesterList.Get(clusterEnforcerAttester.String())
-				if err != nil {
+				attester, exists := e.attesterList.Get(clusterEnforcerAttester.String())
+				if !exists {
 					return nil, fmt.Errorf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String())
 				}
 
@@ -134,7 +134,7 @@ func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.
 
 			// if no valid attestations were found for this attester refuse the admission request
 			if !attested {
-				return admission.Denied(fmt.Sprintf("unable to find attestation for %s", enforcerAttester.String()))
+				return admission.Denied(fmt.Sprintf("Failed verifying attester %s for image %s", enforcerAttester.Name(), container.Image))
 			}
 		}
 	}

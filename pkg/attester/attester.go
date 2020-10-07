@@ -175,12 +175,9 @@ type List struct {
 	attesters map[string]Attester
 }
 
-func (al *List) Get(name string) (Attester, error) {
-	if attester, exists := al.attesters[name]; !exists {
-		return nil, fmt.Errorf("Attester \"%s\" not found", name)
-	} else {
-		return attester, nil
-	}
+func (al *List) Get(name string) (Attester, bool) {
+	attester, exists := al.attesters[name]
+	return attester, exists
 }
 
 func (al *List) GetAll() map[string]Attester {
