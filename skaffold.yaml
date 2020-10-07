@@ -19,12 +19,9 @@ deploy:
 portForward:
 - resourceType: service
   resourceName: rode
+  namespace: rode
   port: 443
   localPort: 9443
-- resourceType: service
-  resourceName: rode-jetstream
-  port: 4222
-  localPort: 4222
 profiles:
 - name: local
   activation:
@@ -63,7 +60,63 @@ profiles:
           value: rode-localstack:4587
         - name: OPA_TRACE
           value: "0"
-
+# Deploy Rode without enforcer `skaffold run -p local,policy`
+- name: policy
+  patches:
+  - op: replace
+    path: /deploy/helm/releases/0/name
+    value: rode-policy
+  - op: replace
+    path: /deploy/helm/releases/0/namespace
+    value: rode-policy
+  - op: add
+    path: /deploy/helm/releases/0/overrides/attesters
+    value:
+      enabled: true
+  - op: add
+    path: /deploy/helm/releases/0/overrides/jetstream
+    value:
+      enabled: true
+  - op: add
+    path: /deploy/helm/releases/0/overrides/enforcer
+    value:
+      enabled: false
+  - op: add
+    path: /deploy/helm/releases/0/overrides/localstack
+    value:
+      enabled: false
+# Deploy Rode with only enforcer `skaffold run -p local,enforcer`
+- name: enforcer
+  patches:
+  - op: replace
+    path: /deploy/helm/releases/0/name
+    value: rode-enforcer
+  - op: replace
+    path: /deploy/helm/releases/0/namespace
+    value: rode-enforcer
+  - op: add
+    path: /deploy/helm/releases/0/overrides/attesters
+    value:
+      enabled: false
+  - op: add
+    path: /deploy/helm/releases/0/overrides/enforcer
+    value:
+      enabled: true
+  - op: replace
+    path: /deploy/helm/releases/0/overrides/service/nodePort
+    value: 31444
+  - op: replace
+    path: /deploy/helm/releases/0/overrides/grafeas/service/nodePort
+    value: 31445
+  - op: add
+    path: /deploy/helm/releases/0/overrides/localstack
+    value:
+      enabled: false
+  - op: add
+    path: /deploy/helm/releases/0/overrides/eventStreamer
+    value:
+      type: jetstream
+      endpoint: rode-policy-jetstream.rode-policy.svc.cluster.local
 - name: production
   patches:
     - op: add

@@ -43,8 +43,7 @@ type ClusterEnforcerSpec struct {
 
 // ClusterEnforcerStatus defines the observed state of ClusterEnforcer
 type ClusterEnforcerStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Conditions []Condition `json:"conditions,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -58,6 +57,35 @@ type ClusterEnforcer struct {
 	Status ClusterEnforcerStatus `json:"status,omitempty"`
 }
 
+func (ce *ClusterEnforcer) Attesters() []*EnforcerAttester {
+	return ce.Spec.Attesters
+}
+
+func (ce *ClusterEnforcer) SetConditions(conditions []Condition) {
+	ce.Status.Conditions = conditions
+}
+
+func (ce *ClusterEnforcer) GetConditions() []Condition {
+	return ce.Status.Conditions
+}
+
+func (ce *ClusterEnforcer) SetCondition(conditionType ConditionType, conditionStatus ConditionStatus, message string) {
+	SetCondition(ce, conditionType, conditionStatus, message)
+}
+
+func (ce *ClusterEnforcer) GetConditionStatus(conditionType ConditionType) ConditionStatus {
+	return GetConditionStatus(ce, conditionType)
+}
+
+func (ce *ClusterEnforcer) EnforcesNamespace(namespace string) bool {
+	for _, ceNamespace := range ce.Spec.Namespaces {
+		if ceNamespace == namespace {
+			return ce.Spec.MatchStrategy == IncludeMatchStrategy
+		}
+	}
+	return ce.Spec.MatchStrategy != IncludeMatchStrategy
+}
+
 // +kubebuilder:object:root=true
 
 // ClusterEnforcerList contains a list of ClusterEnforcer
@@ -69,13 +97,4 @@ type ClusterEnforcerList struct {
 
 func init() {
 	SchemeBuilder.Register(&ClusterEnforcer{}, &ClusterEnforcerList{})
-}
-
-func (ce *ClusterEnforcer) EnforcesNamespace(namespace string) bool {
-	for _, ceNamespace := range ce.Spec.Namespaces {
-		if ceNamespace == namespace {
-			return ce.Spec.MatchStrategy == IncludeMatchStrategy
-		}
-	}
-	return ce.Spec.MatchStrategy != IncludeMatchStrategy
 }

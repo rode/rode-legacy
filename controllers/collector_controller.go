@@ -128,12 +128,7 @@ func (r *CollectorReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 		delete(r.WebhookHandlers, webhookHandlerPath(c, req))
 
-		var err error
-		if collectorWorker.context != nil {
-			err = c.Destroy(collectorWorker.context)
-		} else {
-			err = c.Destroy(ctx)
-		}
+		err := c.Destroy(ctx)
 
 		if err != nil {
 			return r.setCollectorActive(ctx, col, err)

@@ -19,7 +19,7 @@ type testCollector struct {
 
 func NewTestCollector(logger logr.Logger, testMessage string) Collector {
 	return &testCollector{
-		logger:      logger,
+		logger:      logger.WithName("testCollector"),
 		testMessage: testMessage,
 	}
 }
@@ -36,18 +36,18 @@ func (t *testCollector) Reconcile(ctx context.Context, name types.NamespacedName
 
 func (t *testCollector) Start(ctx context.Context, stopChan chan interface{}, occurrenceCreator occurrence.Creator) error {
 	go func() {
-		for range time.NewTicker(5 * time.Second).C {
+		for range time.NewTicker(60 * time.Second).C {
 			select {
 			case <-ctx.Done():
 				stopChan <- true
 				return
 			default:
-				t.logger.Info(t.testMessage)
+				t.logger.Info("Creating test collector occurrence", "message", t.testMessage)
 				occurrences := make([]*grafeas.Occurrence, 0)
 				o := &grafeas.Occurrence{
 					Name: "test_occurrence",
 					Resource: &grafeas.Resource{
-						Uri: "testUri@testDigest",
+						Uri: "nginx:latest",
 					},
 					NoteName: "projects/rode/notes/testResource",
 				}

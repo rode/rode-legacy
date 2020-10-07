@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	grafeasCommon "github.com/grafeas/grafeas/proto/v1beta1/common_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	project "github.com/grafeas/grafeas/proto/v1beta1/project_go_proto"
 	"google.golang.org/grpc"
@@ -54,9 +55,9 @@ func NewGrafeasClient(log logr.Logger, tlsConfig *tls.Config, endpoint string) (
 	return c, nil
 }
 
-// ListOccurrences will get the occurence for a resource
-func (c *grafeasClient) ListOccurrences(ctx context.Context, resourceURI string) (*grafeas.ListOccurrencesResponse, error) {
-	c.log.Info("Get occurrences for resource", "resouceURI", resourceURI)
+// ListOccurrences will get the occurrence for a resource
+func (c *grafeasClient) ListOccurrences(ctx context.Context, resourceURI string) ([]*grafeas.Occurrence, error) {
+	c.log.Info("Get occurrences for resource", "resourceURI", resourceURI)
 
 	resp, err := c.client.ListOccurrences(ctx, &grafeas.ListOccurrencesRequest{
 		Parent:   c.projectID,
@@ -76,12 +77,25 @@ func (c *grafeasClient) ListOccurrences(ctx context.Context, resourceURI string)
 		}
 	}
 
-	return &grafeas.ListOccurrencesResponse{
-		Occurrences: occurrences,
-	}, nil
+	return occurrences, nil
 }
 
-// CreateOccurrences will save the occurence in grafeas
+func (c *grafeasClient) ListAttestations(ctx context.Context, resourceURI string) ([]*grafeas.Occurrence, error) {
+	occurrences, err := c.ListOccurrences(ctx, resourceURI)
+	if err != nil {
+		return nil, err
+	}
+
+	attestations := []*grafeas.Occurrence{}
+	for _, occurrence := range occurrences {
+		if occurrence.Kind == grafeasCommon.NoteKind_ATTESTATION {
+			attestations = append(attestations, occurrence)
+		}
+	}
+	return attestations, nil
+}
+
+// CreateOccurrences will save the occurrence in grafeas
 func (c *grafeasClient) CreateOccurrences(ctx context.Context, occurrences ...*grafeas.Occurrence) error {
 	if len(occurrences) == 0 {
 		return nil

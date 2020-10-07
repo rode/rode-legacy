@@ -25,7 +25,7 @@ type Signer interface {
 	String() string
 }
 
-// Construct Signer with new OpenPGP keys
+// NewSigner construct Signer with new OpenPGP keys
 func NewSigner(name string) (Signer, error) {
 	config := &packet.Config{
 		DefaultHash: crypto.SHA256,
@@ -38,7 +38,7 @@ func NewSigner(name string) (Signer, error) {
 	return &signer{entity}, nil
 }
 
-// Construct Signer from existing OpenPGP keys
+// NewSignerFromKeys construct Signer from existing OpenPGP keys
 func NewSignerFromKeys(keys []byte) (Signer, error) {
 	entity, err := openpgp.ReadEntity(packet.NewReader(bytes.NewBuffer(keys)))
 	if err != nil {

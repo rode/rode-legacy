@@ -30,119 +30,111 @@ type Enforcer interface {
 
 type enforcer struct {
 	log              logr.Logger
-	attesterLister   attester.Lister
 	occurrenceLister occurrence.Lister
+	attesterList     *attester.List
 	client           client.Client
 	decoder          *admission.Decoder
 }
 
 // NewEnforcer creates an enforcer
-func NewEnforcer(log logr.Logger, attesterLister attester.Lister, occurrenceLister occurrence.Lister, c client.Client) Enforcer {
+func NewEnforcer(log logr.Logger, occurrenceLister occurrence.Lister, attesterList *attester.List, c client.Client) Enforcer {
 	return &enforcer{
 		log,
-		attesterLister,
 		occurrenceLister,
+		attesterList,
 		c,
 		nil,
 	}
 }
 
-func (e *enforcer) AddEnforcerAttesters(ctx context.Context, enforcerAttesters map[string]attester.Attester, namespace string) error {
-	// get all attesters
-	attesters := e.attesterLister.ListAttesters()
+// getEnforcerAttesters returns a list of attesters for all enforcers in the namespace and all cluster enforcers
+func (e *enforcer) getEnforcerAttesters(ctx context.Context, namespace string) (*attester.List, error) {
+	enforcerAttesters := attester.NewList()
 
 	// get enforcers
 	enforcers := &rodev1alpha1.EnforcerList{}
 	err := e.client.List(ctx, enforcers, client.InNamespace(namespace))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, enforcer := range enforcers.Items {
 		for _, enforcerAttester := range enforcer.Spec.Attesters {
-			a, attesterExists := attesters[enforcerAttester.String()]
-			if !attesterExists {
-				return fmt.Errorf("enforcer %s/%s requires attester %s which does not exist", enforcer.Namespace, enforcer.Name, enforcerAttester.String())
+			attester, exists := e.attesterList.Get(enforcerAttester.String())
+			if !exists {
+				return nil, fmt.Errorf("enforcer %s/%s requires attester %s which does not exist", enforcer.Namespace, enforcer.Name, enforcerAttester.String())
 			}
 
-			_, enforcerAttesterExists := enforcerAttesters[enforcerAttester.String()]
-			if !enforcerAttesterExists {
-				enforcerAttesters[enforcerAttester.String()] = a
-			}
+			enforcerAttesters.Add(attester)
 		}
 	}
 
-	return nil
-}
-
-func (e *enforcer) AddClusterEnforcerAttesters(ctx context.Context, enforcerAttesters map[string]attester.Attester, namespace string) error {
-	// get all attesters
-	attesters := e.attesterLister.ListAttesters()
-
+	// get cluster enforcers
 	clusterEnforcers := &rodev1alpha1.ClusterEnforcerList{}
-	err := e.client.List(ctx, clusterEnforcers)
+	err = e.client.List(ctx, clusterEnforcers)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, clusterEnforcer := range clusterEnforcers.Items {
 		if clusterEnforcer.EnforcesNamespace(namespace) {
 			for _, clusterEnforcerAttester := range clusterEnforcer.Spec.Attesters {
-				a, attesterExists := attesters[clusterEnforcerAttester.String()]
-				if !attesterExists {
-					return fmt.Errorf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String())
+				attester, exists := e.attesterList.Get(clusterEnforcerAttester.String())
+				if !exists {
+					return nil, fmt.Errorf("cluster enforcer %s/%s requires attester %s which does not exist", clusterEnforcer.Namespace, clusterEnforcer.Name, clusterEnforcerAttester.String())
 				}
 
-				_, enforcerAttesterExists := enforcerAttesters[clusterEnforcerAttester.String()]
-				if !enforcerAttesterExists {
-					enforcerAttesters[clusterEnforcerAttester.String()] = a
-				}
+				enforcerAttesters.Add(attester)
 			}
 		}
 	}
-	return nil
+
+	return enforcerAttesters, nil
 }
 
+// Handle verifies each container image for the pod in the admission request has at lease one attestesation
+// signed by an attester for every attester in every enforcer responsible for the requests namespace
 func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.Response {
+	log := e.log.WithName("Handle()").WithValues("NAMESPACE", req.Namespace, "NAME", req.Name)
+
 	pod := &corev1.Pod{}
 	err := e.decoder.Decode(req, pod)
 	if err != nil {
+		log.Error(err, "failed to decode admission request", "REQUEST", req)
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	e.log.Info("handling enforcement request", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+	log.Info("handling enforcement request", "pod", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
 
-	enforcerAttesters := make(map[string]attester.Attester)
-
-	err = e.AddEnforcerAttesters(ctx, enforcerAttesters, pod.Namespace)
+	// compile list of attesters that should be enforced for this namespace
+	enforcerAttesters, err := e.getEnforcerAttesters(ctx, pod.Namespace)
 	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err)
-	}
-
-	err = e.AddClusterEnforcerAttesters(ctx, enforcerAttesters, pod.Namespace)
-	if err != nil {
+		log.Error(err, "failed to get list of enforcer attesters")
 		return admission.Errored(http.StatusInternalServerError, err)
 	}
 
 	for _, container := range pod.Spec.Containers {
-		occurrenceList, err := e.occurrenceLister.ListOccurrences(ctx, container.Image) // probably have to convert to sha256 here
+		// Get attestation occurrences for image URI
+		attestationList, err := e.occurrenceLister.ListAttestations(ctx, container.Image)
 		if err != nil {
+			log.Error(err, "failed to fetch attestations for image", "IMAGE", container.Image)
 			return admission.Errored(http.StatusInternalServerError, err)
 		}
 
-		e.log.Info("ListOccurrances", "occurrences", occurrenceList.Occurrences)
-
-		for _, enforcerAttester := range enforcerAttesters {
+		// verify each attester has a signed attestation
+		for _, enforcerAttester := range enforcerAttesters.GetAll() {
 			attested := false
-			for _, occ := range occurrenceList.GetOccurrences() {
-				if err = enforcerAttester.Verify(ctx, &attester.VerifyRequest{Occurrence: occ}); err == nil {
+			// check each attestation until we find one that was signed by the current attester
+			for _, attestation := range attestationList {
+				if err = enforcerAttester.Verify(ctx, &attester.VerifyRequest{Occurrence: attestation}); err == nil {
 					attested = true
 					break
 				}
 			}
 
+			// if no valid attestations were found for this attester refuse the admission request
 			if !attested {
-				return admission.Denied(fmt.Sprintf("unable to find attestation for %s", enforcerAttester.String()))
+				return admission.Denied(fmt.Sprintf("Failed verifying attester %s for image %s", enforcerAttester.Name(), container.Image))
 			}
 		}
 	}

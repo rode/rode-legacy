@@ -38,12 +38,12 @@ type AttesterReconciler struct {
 	client.Client
 	Log       logr.Logger
 	Scheme    *runtime.Scheme
-	Attesters map[string]attester.Attester
+	Attesters *attester.List
 }
 
 // ListAttesters returns a list of Attester objects
 func (r *AttesterReconciler) ListAttesters() map[string]attester.Attester {
-	return r.Attesters
+	return r.Attesters.GetAll()
 }
 
 var (
@@ -96,7 +96,7 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 
 		// Deleting attester object
-		delete(r.Attesters, req.NamespacedName.String())
+		r.Attesters.Remove(req.NamespacedName.String())
 
 		return ctrl.Result{}, err
 	}
@@ -136,8 +136,9 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	}
 
 	// Add or replace attester in list
-	r.Attesters[req.NamespacedName.String()] = attester.NewAttester(req.NamespacedName.String(), policy, signer)
-	log.Info(fmt.Sprintf("Add / Update %s", r.Attesters[req.NamespacedName.String()]))
+	attester := attester.NewAttester(req.NamespacedName.String(), policy, signer)
+	r.Attesters.Add(attester)
+	log.Info("Add / Update attester", "ATTESTER", attester.String())
 
 	return ctrl.Result{}, nil
 }

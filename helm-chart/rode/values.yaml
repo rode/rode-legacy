@@ -95,7 +95,9 @@ resources:
 ingress:
   enabled: false
 
-event_streamer:
-  enabled: true
-  type: jetstream
+jetstream:
+  enabled: false
+
+eventStreamer:
+  type: ""
   endpoint: ""
