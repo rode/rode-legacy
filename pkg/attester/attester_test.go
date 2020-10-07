@@ -3,201 +3,270 @@ package attester
 import (
 	"context"
 	"fmt"
-	"testing"
+	"k8s.io/apimachinery/pkg/util/rand"
+	"strings"
 
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
-	"github.com/stretchr/testify/assert"
-	"k8s.io/apimachinery/pkg/util/rand"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-var (
-	attesterName string
-	ctx          = context.Background()
-)
+var _ = Context("attester", func() {
+	var (
+		attesterName  string
+		noteName      string
+		policyModule  string
+		attestRequest *AttestRequest
+		ctx           context.Context
+	)
 
-func TestAttester_AttestBadSigner(t *testing.T) {
-	assert := assert.New(t)
-
-	attesterName = fmt.Sprintf("attester%s", rand.String(10))
-
-	policyModule := `
+	BeforeEach(func() {
+		ctx = context.Background()
+		attesterName = fmt.Sprintf("attester%s", rand.String(10))
+		noteName = fmt.Sprintf("projects/rode/notes/%s", attesterName)
+		policyModule = `
 	package default_attester
 	violation[{"msg":"analysis failed"}]{
 		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
 	}
 	`
-	att, err := createAttester(attesterName, policyModule, true)
-	assert.NoError(err)
 
-	attestRequest := &AttestRequest{
-		ResourceURI: attesterName,
-		Occurrences: []*grafeas.Occurrence{
-			{
-				Resource: &grafeas.Resource{
-					Uri: attesterName,
-				},
-				NoteName: fmt.Sprintf("projects/rode/notes/%s", attesterName),
-				Details: &grafeas.Occurrence_Discovered{
-					Discovered: &discovery.Details{
-						Discovered: &discovery.Discovered{
-							AnalysisStatus: discovery.Discovered_FINISHED_SUCCESS,
+		attestRequest = &AttestRequest{
+			ResourceURI: attesterName,
+			Occurrences: []*grafeas.Occurrence{
+				{
+					Resource: &grafeas.Resource{
+						Uri: attesterName,
+					},
+					NoteName: noteName,
+					Details: &grafeas.Occurrence_Discovered{
+						Discovered: &discovery.Details{
+							Discovered: &discovery.Discovered{
+								AnalysisStatus: discovery.Discovered_FINISHED_SUCCESS,
+							},
 						},
 					},
 				},
 			},
-		},
-	}
+		}
 
-	_, err = att.Attest(ctx, attestRequest)
-	assert.Error(err)
-}
+	})
 
-func TestAttester_AttestValid(t *testing.T) {
-	assert := assert.New(t)
+	When("the attestation fails to sign", func() {
+		It("should return the signer error", func() {
+			att, err := createAttester(attesterName, policyModule, true)
+			Expect(err).ToNot(HaveOccurred())
 
-	attesterName = fmt.Sprintf("attester%s", rand.String(10))
+			attestResponse, err := att.Attest(ctx, attestRequest)
+			Expect(err).To(HaveOccurred())
+			Expect(attestResponse).To(BeNil())
+		})
+	})
 
-	policyModule := `
-	package default_attester
-	violation[{"msg":"analysis failed"}]{
-		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
-	}
-	`
-	att, err := createAttester(attesterName, policyModule, false)
-	assert.NoError(err)
+	When("the attestation is successfully signed", func() {
+		It("should return the attestation response", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
 
-	attestRequest := &AttestRequest{
-		ResourceURI: attesterName,
-		Occurrences: []*grafeas.Occurrence{
-			{
-				Resource: &grafeas.Resource{
-					Uri: attesterName,
-				},
-				NoteName: fmt.Sprintf("projects/rode/notes/%s", attesterName),
-				Details: &grafeas.Occurrence_Discovered{
-					Discovered: &discovery.Details{
-						Discovered: &discovery.Discovered{
-							AnalysisStatus: discovery.Discovered_FINISHED_SUCCESS,
-						},
-					},
-				},
-			},
-		},
-	}
+			attestResponse, err := att.Attest(ctx, attestRequest)
+			Expect(err).To(BeNil())
+			Expect(attestResponse).ToNot(BeNil())
+			Expect(attestResponse.Attestation.NoteName).To(Equal(noteName))
+			Expect(attestResponse.Attestation.Resource.Uri).To(Equal(attesterName))
+		})
+	})
 
-	res, err := att.Attest(ctx, attestRequest)
-	assert.NoError(err)
-	assert.NotNil(res.Attestation)
-	assert.Equal(res.Attestation.NoteName, fmt.Sprintf("projects/rode/notes/%s", attesterName))
-	assert.Equal(res.Attestation.Resource.Uri, attesterName)
-}
+	When("the occurrence is nil", func() {
+		It("should fail the verification", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
 
-func TestAtester_VerifyBadOccurrence(t *testing.T) {
-	assert := assert.New(t)
+			verifyRequest := &VerifyRequest{Occurrence: nil}
 
-	attesterName = fmt.Sprintf("attester%s", rand.String(10))
+			err = att.Verify(ctx, verifyRequest)
+			Expect(err).To(HaveOccurred())
+		})
+	})
 
-	policyModule := `
-	package default_attester
-	violation[{"msg":"analysis failed"}]{
-		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
-	}
-	`
-	att, err := createAttester(attesterName, policyModule, false)
-	assert.NoError(err)
+	When("the attestation key does not match", func() {
+		It("should fail to verify", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
 
-	req := &VerifyRequest{Occurrence: nil}
+			response, err := att.Attest(ctx, attestRequest)
+			Expect(err).ToNot(HaveOccurred())
 
-	err = att.Verify(ctx, req)
-	assert.Error(err)
-}
+			newAttester, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
 
-func TestAttester_VerifyBadKey(t *testing.T) {
-	assert := assert.New(t)
+			req := &VerifyRequest{response.Attestation}
+			err = newAttester.Verify(ctx, req)
 
-	attesterName = fmt.Sprintf("attester%s", rand.String(10))
+			Expect(err).To(HaveOccurred())
+		})
+	})
 
-	policyModule := `
-	package default_attester
-	violation[{"msg":"analysis failed"}]{
-		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
-	}
-	`
-	att, err := createAttester(attesterName, policyModule, false)
-	assert.NoError(err)
+	When("the attestation is valid", func() {
+		It("should pass verification", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
 
-	attestRequest := &AttestRequest{
-		ResourceURI: attesterName,
-		Occurrences: []*grafeas.Occurrence{
-			{
-				Resource: &grafeas.Resource{
-					Uri: attesterName,
-				},
-				NoteName: fmt.Sprintf("projects/rode/notes/%s", attesterName),
-				Details: &grafeas.Occurrence_Discovered{
-					Discovered: &discovery.Details{
-						Discovered: &discovery.Discovered{
-							AnalysisStatus: discovery.Discovered_FINISHED_SUCCESS,
-						},
-					},
-				},
-			},
-		},
-	}
+			response, err := att.Attest(ctx, attestRequest)
+			Expect(err).ToNot(HaveOccurred())
 
-	res, err := att.Attest(ctx, attestRequest)
-	assert.NoError(err)
+			verifyRequest := &VerifyRequest{response.Attestation}
 
-	newAttester, err := createAttester(attesterName, policyModule, false)
-	assert.NoError(err)
+			err = att.Verify(ctx, verifyRequest)
+			Expect(err).NotTo(HaveOccurred())
+		})
+	})
 
-	req := &VerifyRequest{res.Attestation}
-	err = newAttester.Verify(ctx, req)
-	assert.Error(err)
-}
+	When("the attestation is printed", func() {
+		It("should display the struct name and signer info", func() {
+			policy, err := NewPolicy(attesterName, policyModule, true)
+			Expect(err).ToNot(HaveOccurred())
 
-func TestAttester_VerifyValid(t *testing.T) {
-	assert := assert.New(t)
+			signer, err := NewSigner(attesterName)
+			Expect(err).ToNot(HaveOccurred())
 
-	attesterName = fmt.Sprintf("attester%s", rand.String(10))
+			att := NewAttester(attesterName, policy, signer)
 
-	policyModule := `
-	package default_attester
-	violation[{"msg":"analysis failed"}]{
-		input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
-	}
-	`
-	att, err := createAttester(attesterName, policyModule, false)
-	assert.NoError(err)
+			expectedAttestation := strings.Join([]string{
+				"Attester",
+				attesterName,
+				"(" + signer.String() + ")",
+			}, " ")
+			Expect(err).ToNot(HaveOccurred())
 
-	attestRequest := &AttestRequest{
-		ResourceURI: attesterName,
-		Occurrences: []*grafeas.Occurrence{
-			{
-				Resource: &grafeas.Resource{
-					Uri: attesterName,
-				},
-				NoteName: fmt.Sprintf("projects/rode/notes/%s", attesterName),
-				Details: &grafeas.Occurrence_Discovered{
-					Discovered: &discovery.Details{
-						Discovered: &discovery.Discovered{
-							AnalysisStatus: discovery.Discovered_FINISHED_SUCCESS,
-						},
-					},
-				},
-			},
-		},
-	}
+			Expect(att.String()).To(Equal(expectedAttestation))
+		})
+	})
 
-	res, err := att.Attest(ctx, attestRequest)
-	assert.NoError(err)
+	When("the name getter is called", func() {
+		It("should return the attester name", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
 
-	req := &VerifyRequest{res.Attestation}
+			Expect(att.Name()).To(Equal(attesterName))
+		})
+	})
 
-	err = att.Verify(ctx, req)
-	assert.NoError(err)
-}
+	When("the key id getter is called", func() {
+		It("should return the signer's keyID", func() {
+			policy, err := NewPolicy(attesterName, policyModule, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			signer, err := NewSigner(attesterName)
+			Expect(err).ToNot(HaveOccurred())
+
+			att := NewAttester(attesterName, policy, signer)
+
+			Expect(att.KeyID()).To(Equal(signer.KeyID()))
+		})
+	})
+
+	When("an attester list is created", func() {
+		var attesterList *List
+
+		BeforeEach(func() {
+			attesterList = NewList()
+		})
+
+		It("should be returned", func() {
+			Expect(attesterList).ToNot(BeNil())
+		})
+
+		It("should allow for attesters to be added", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
+
+			attesterList.Add(att)
+			attesterFromList, exists := attesterList.Get(attesterName)
+
+			Expect(exists).To(BeTrue())
+			Expect(attesterFromList.Name()).To(Equal(att.Name()))
+			Expect(attesterFromList.KeyID()).To(Equal(att.KeyID()))
+		})
+
+		It("should allow for all attesters to be fetched at once", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
+
+			otherAttesterName := fmt.Sprintf("attester%s", rand.String(10))
+			otherAtt, err := createAttester(otherAttesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
+			expectedNumberOfAttesters := 2
+
+			attesterList.Add(att)
+			attesterList.Add(otherAtt)
+
+			list := attesterList.GetAll()
+
+			Expect(len(list)).To(Equal(expectedNumberOfAttesters))
+			Expect(list[attesterName]).NotTo(BeNil())
+			Expect(list[otherAttesterName]).NotTo(BeNil())
+		})
+
+		It("should allow for attesters to be removed", func() {
+			att, err := createAttester(attesterName, policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
+
+			attesterList.Add(att)
+			attesterList.Remove(attesterName)
+			_, exists := attesterList.Get(attesterName)
+
+			Expect(exists).To(BeFalse())
+			Expect(len(attesterList.GetAll())).To(Equal(0))
+		})
+
+		It("should be able to find an attester by key ID", func() {
+			policy, err := NewPolicy(attesterName, policyModule, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			signer, err := NewSigner(attesterName)
+			Expect(err).ToNot(HaveOccurred())
+
+			att := NewAttester(attesterName, policy, signer)
+
+			otherAttester, err := createAttester(fmt.Sprintf("attester%s", rand.String(10)), policyModule, false)
+			Expect(err).ToNot(HaveOccurred())
+
+			attesterList.Add(att)
+			attesterList.Add(otherAttester)
+
+			attestersByKeyID := attesterList.FindByKeyID(signer.KeyID())
+
+			Expect(len(attestersByKeyID.GetAll())).To(Equal(1))
+		})
+
+		It("should be able to find multiple attesters with the same key ID", func() {
+			policy, err := NewPolicy(attesterName, policyModule, true)
+			Expect(err).ToNot(HaveOccurred())
+
+			signer, err := NewSigner(attesterName)
+			Expect(err).ToNot(HaveOccurred())
+
+			att := NewAttester(attesterName, policy, signer)
+			otherAttester := NewAttester(fmt.Sprintf("attester%s", rand.String(10)), policy, signer)
+			Expect(err).ToNot(HaveOccurred())
+
+			thirdAttester, err := createAttester(fmt.Sprintf("attester%s", rand.String(10)), policyModule, false)
+
+			attesterList.Add(att)
+			attesterList.Add(otherAttester)
+			attesterList.Add(thirdAttester)
+
+			attestersByKeyID := attesterList.FindByKeyID(signer.KeyID())
+
+			Expect(len(attestersByKeyID.GetAll())).To(Equal(2))
+			_, exists := attestersByKeyID.Get(attesterName)
+			Expect(exists).To(BeTrue())
+			_, exists = attestersByKeyID.Get(otherAttester.Name())
+			Expect(exists).To(BeTrue())
+		})
+	})
+})
 
 func createAttester(attesterName string, policyModule string, badSigner bool) (Attester, error) {
 	policy, err := NewPolicy(attesterName, policyModule, true)
