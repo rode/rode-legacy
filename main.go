@@ -142,12 +142,14 @@ func main() {
 		}
 	}()
 
+	attesterList := attester.NewList()
+
 	if enableAttester {
 		attesters := &controllers.AttesterReconciler{
 			Client:    mgr.GetClient(),
 			Log:       ctrl.Log.WithName("controllers").WithName("Attester"),
 			Scheme:    mgr.GetScheme(),
-			Attesters: make(map[string]attester.Attester),
+			Attesters: attesterList,
 		}
 		if err = attesters.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Attester")
@@ -184,24 +186,19 @@ func main() {
 
 	if enableEnforcer {
 
-		signerList := attester.NewSignerList()
 		if err = (&controllers.EnforcerReconciler{
 			Client:        mgr.GetClient(),
 			Log:           ctrl.Log.WithName("controllers").WithName("Enforcer"),
 			RodeNamespace: rodeNamespace,
 			Scheme:        mgr.GetScheme(),
 			EventManager:  aem,
-			SignerList:    signerList,
+			AttesterList:  *attesterList,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Enforcer")
 			os.Exit(1)
 		}
 
-		// // remove this after merging in changes enforcer signer changes
-		// attesters := &controllers.AttesterReconciler{
-		// 	Attesters: make(map[string]attester.Attester),
-		// }
-		enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), grafeasClient, signerList, mgr.GetClient())
+		enforcer := enforcer.NewEnforcer(ctrl.Log.WithName("enforcer"), grafeasClient, attesterList, mgr.GetClient())
 		mgr.GetWebhookServer().Register("/validate-v1-pod", &webhook.Admission{Handler: enforcer})
 	}
 

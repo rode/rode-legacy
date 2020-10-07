@@ -69,7 +69,7 @@ func (a *attestWrapper) CreateOccurrences(ctx context.Context, occurrences ...*g
 			for _, att := range a.attesterLister.ListAttesters() {
 				resp, err := att.Attest(ctx, &AttestRequest{
 					ResourceURI: uri,
-					Occurrences: allOccurrences.GetOccurrences(),
+					Occurrences: allOccurrences,
 				})
 				if err != nil {
 					if vErr, ok := err.(ViolationError); ok {

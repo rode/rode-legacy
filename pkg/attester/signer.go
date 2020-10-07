@@ -27,7 +27,7 @@ type Signer interface {
 	VerifyAttestation(*grafeas.Occurrence) error
 }
 
-// Construct Signer with new OpenPGP keys
+// NewSigner construct Signer with new OpenPGP keys
 func NewSigner(name string) (Signer, error) {
 	config := &packet.Config{
 		DefaultHash: crypto.SHA256,
@@ -40,44 +40,13 @@ func NewSigner(name string) (Signer, error) {
 	return &signer{entity}, nil
 }
 
-// Construct Signer from existing OpenPGP keys
+// NewSignerFromKeys construct Signer from existing OpenPGP keys
 func NewSignerFromKeys(keys []byte) (Signer, error) {
 	entity, err := openpgp.ReadEntity(packet.NewReader(bytes.NewBuffer(keys)))
 	if err != nil {
 		return nil, err
 	}
 	return &signer{entity}, nil
-}
-
-type SignerList interface {
-	Add(string, Signer)
-	Get(string) (Signer, error)
-	GetAll() map[string]Signer
-}
-
-type signerList struct {
-	signers map[string]Signer
-}
-
-func NewSignerList() SignerList {
-	return &signerList{
-		signers: map[string]Signer{},
-	}
-}
-
-func (sl *signerList) Add(attesterName string, signer Signer) {
-	sl.signers[attesterName] = signer
-}
-
-func (sl *signerList) Get(attesterName string) (Signer, error) {
-	if signer, ok := sl.signers[attesterName]; ok {
-		return signer, nil
-	}
-	return nil, fmt.Errorf("no signer for attester '%s'", attesterName)
-}
-
-func (sl *signerList) GetAll() map[string]Signer {
-	return sl.signers
 }
 
 func (s *signer) Sign(message string) (string, error) {

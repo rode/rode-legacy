@@ -8,7 +8,8 @@ import (
 
 // Lister implements the listing of occurrences
 type Lister interface {
-	ListOccurrences(context.Context, string) (*grafeas.ListOccurrencesResponse, error)
+	ListOccurrences(ctx context.Context, resourceURI string) ([]*grafeas.Occurrence, error)
+	ListAttestations(ctx context.Context, resourceURI string) ([]*grafeas.Occurrence, error)
 }
 
 // Creator implements the creation of new occurrences

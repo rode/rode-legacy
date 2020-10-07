@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	grafeasCommon "github.com/grafeas/grafeas/proto/v1beta1/common_go_proto"
 	attestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 )
@@ -32,6 +33,7 @@ func NewAttester(name string, policy Policy, signer Signer) Attester {
 type Attester interface {
 	Attest(ctx context.Context, req *AttestRequest) (*AttestResponse, error)
 	Verify(ctx context.Context, req *VerifyRequest) error
+	KeyID() string
 	Name() string
 	String() string
 }
@@ -84,6 +86,7 @@ func (a *attester) Attest(ctx context.Context, req *AttestRequest) (*AttestRespo
 	}
 
 	attestOccurrence := &grafeas.Occurrence{}
+	attestOccurrence.Kind = grafeasCommon.NoteKind_ATTESTATION
 	attestOccurrence.NoteName = fmt.Sprintf("projects/%s/notes/%s", a.projectID, strings.ReplaceAll(a.name, "/", "."))
 	attestOccurrence.Resource = &grafeas.Resource{Uri: req.ResourceURI}
 	attestOccurrence.Details = &grafeas.Occurrence_Attestation{
@@ -114,19 +117,23 @@ type VerifyRequest struct {
 
 func (a *attester) Verify(ctx context.Context, req *VerifyRequest) error {
 	if req.Occurrence == nil || req.Occurrence.GetAttestation() == nil {
-		return fmt.Errorf("Occurrence is not an attestation")
+		return fmt.Errorf("occurrence is not an attestation")
 	}
 	if a.signer.KeyID() != req.Occurrence.GetAttestation().GetAttestation().GetPgpSignedAttestation().GetPgpKeyId() {
-		return fmt.Errorf("Invalid keyID")
+		return fmt.Errorf("invalid keyID")
 	}
 	body, err := a.signer.Verify(req.Occurrence.GetAttestation().GetAttestation().GetPgpSignedAttestation().GetSignature())
 	if err != nil {
 		return err
 	}
 	if body != req.Occurrence.GetResource().GetUri() {
-		return fmt.Errorf("Signature body doesn't match")
+		return fmt.Errorf("signature body doesn't match")
 	}
 	return nil
+}
+
+func (a *attester) KeyID() string {
+	return a.signer.KeyID()
 }
 
 func (a *attester) Name() string {
@@ -156,4 +163,44 @@ func (oi *occurrenceInput) addOccurrence(occurrence *grafeas.Occurrence) error {
 
 	oi.Occurrences = append(oi.Occurrences, occurrenceAsMap)
 	return nil
+}
+
+func NewList() *List {
+	return &List{
+		attesters: map[string]Attester{},
+	}
+}
+
+type List struct {
+	attesters map[string]Attester
+}
+
+func (al *List) Get(name string) (Attester, error) {
+	if attester, exists := al.attesters[name]; !exists {
+		return nil, fmt.Errorf("Attester \"%s\" not found", name)
+	} else {
+		return attester, nil
+	}
+}
+
+func (al *List) GetAll() map[string]Attester {
+	return al.attesters
+}
+
+func (al *List) FindByKeyID(keyID string) *List {
+	attesters := NewList()
+	for _, attester := range al.attesters {
+		if attester.KeyID() == keyID {
+			attesters.Add(attester)
+		}
+	}
+	return attesters
+}
+
+func (al *List) Remove(name string) {
+	delete(al.attesters, name)
+}
+
+func (al *List) Add(attester Attester) {
+	al.attesters[attester.Name()] = attester
 }

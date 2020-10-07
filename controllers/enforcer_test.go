@@ -168,7 +168,7 @@ var _ = Context("enforcers", func() {
 			})
 
 			// Skipping until enforcer creation populates a signer for the enforcer's Handle method to use
-			XIt("should allow a pod to be scheduled if there is an attestation", func() {
+			It("should allow a pod to be scheduled if there is an attestation", func() {
 				attestRequest := &attester.AttestRequest{
 					ResourceURI: imageName,
 					Occurrences: []*grafeas.Occurrence{
