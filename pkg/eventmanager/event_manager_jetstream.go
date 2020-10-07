@@ -23,7 +23,7 @@ type JetstreamClient struct {
 	Consumers         map[string]*JetstreamConsumer
 }
 
-func NewJetstreamClient(log logr.Logger, url string, occurrenceCreator occurrence.Creator) *JetstreamClient {
+func NewJetstreamClient(log logr.Logger, url string, occurrenceCreator occurrence.Creator) EventManager {
 	return &JetstreamClient{
 		log:               log.WithName("JetstreamClient"),
 		url:               url,
