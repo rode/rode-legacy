@@ -148,9 +148,9 @@ func main() {
 		attesters := &controllers.AttesterReconciler{
 			Client:       mgr.GetClient(),
 			EventManager: aem,
-			Log:       ctrl.Log.WithName("controllers").WithName("Attester"),
-			Scheme:    mgr.GetScheme(),
-			Attesters: attesterList,
+			Log:          ctrl.Log.WithName("controllers").WithName("Attester"),
+			Scheme:       mgr.GetScheme(),
+			Attesters:    attesterList,
 		}
 		if err = attesters.SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", "Attester")
