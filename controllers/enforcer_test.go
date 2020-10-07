@@ -167,7 +167,6 @@ var _ = Context("enforcers", func() {
 				Expect(admissionResponse.Allowed).To(BeFalse())
 			})
 
-			// Skipping until enforcer creation populates a signer for the enforcer's Handle method to use
 			It("should allow a pod to be scheduled if there is an attestation", func() {
 				attestRequest := &attester.AttestRequest{
 					ResourceURI: imageName,
