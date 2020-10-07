@@ -248,7 +248,7 @@ func grafeasTLSConfig(log logr.Logger) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{clientCert},
 		RootCAs:      caCertPool,
-		//InsecureSkipVerify: true,
+		// InsecureSkipVerify: true,
 	}
 	tlsConfig.BuildNameToCertificate()
 

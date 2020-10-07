@@ -92,7 +92,7 @@ func (e *enforcer) getEnforcerAttesters(ctx context.Context, namespace string) (
 	return enforcerAttesters, nil
 }
 
-// Handle verifies each container image for the pod in the admission request has at lease one attestesation 
+// Handle verifies each container image for the pod in the admission request has at lease one attestesation
 // signed by an attester for every attester in every enforcer responsible for the requests namespace
 func (e *enforcer) Handle(ctx context.Context, req admission.Request) admission.Response {
 	log := e.log.WithName("Handle()").WithValues("NAMESPACE", req.Namespace, "NAME", req.Name)

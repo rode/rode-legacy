@@ -10,8 +10,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	grafeasCommon "github.com/grafeas/grafeas/proto/v1beta1/common_go_proto"
+	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 	project "github.com/grafeas/grafeas/proto/v1beta1/project_go_proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -88,7 +88,7 @@ func (c *grafeasClient) ListAttestations(ctx context.Context, resourceURI string
 
 	attestations := []*grafeas.Occurrence{}
 	for _, occurrence := range occurrences {
-		if (occurrence.Kind == grafeasCommon.NoteKind_ATTESTATION) {
+		if occurrence.Kind == grafeasCommon.NoteKind_ATTESTATION {
 			attestations = append(attestations, occurrence)
 		}
 	}

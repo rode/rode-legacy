@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	grafeasCommon "github.com/grafeas/grafeas/proto/v1beta1/common_go_proto"
 	attestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
+	grafeasCommon "github.com/grafeas/grafeas/proto/v1beta1/common_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 )
 

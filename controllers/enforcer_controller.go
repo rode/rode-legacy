@@ -40,7 +40,7 @@ type EnforcerReconciler struct {
 	RodeNamespace string
 	Scheme        *runtime.Scheme
 	EventManager  eventmanager.EventManager
-	AttesterList	attester.List
+	AttesterList  attester.List
 }
 
 func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
@@ -145,9 +145,9 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					}
 					return ctrl.Result{}, err
 				}
-	
+
 				att := attester.NewAttester(attesterName, nil, signer)
-				r.AttesterList.Add(att)	
+				r.AttesterList.Add(att)
 			}
 
 			enforcer.SetCondition(rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue, "Found signer secret")
