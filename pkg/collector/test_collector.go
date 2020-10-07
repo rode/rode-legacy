@@ -47,7 +47,7 @@ func (t *testCollector) Start(ctx context.Context, stopChan chan interface{}, oc
 				o := &grafeas.Occurrence{
 					Name: "test_occurrence",
 					Resource: &grafeas.Resource{
-						Uri: "testUri@testDigest",
+						Uri: "nginx:latest",
 					},
 					NoteName: "projects/rode/notes/testResource",
 				}
