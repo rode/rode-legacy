@@ -1,10 +1,11 @@
-package attester
+package attester_test
 
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"strings"
+
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
