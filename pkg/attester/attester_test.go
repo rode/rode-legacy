@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/rand"
+	"github.com/liatrio/rode/pkg/attester"
 
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
@@ -18,7 +19,7 @@ var _ = Context("attester", func() {
 		attesterName  string
 		noteName      string
 		policyModule  string
-		attestRequest *AttestRequest
+		attestRequest *attester.AttestRequest
 		ctx           context.Context
 	)
 
@@ -33,7 +34,7 @@ var _ = Context("attester", func() {
 	}
 	`
 
-		attestRequest = &AttestRequest{
+		attestRequest = &attester.AttestRequest{
 			ResourceURI: attesterName,
 			Occurrences: []*grafeas.Occurrence{
 				{
@@ -83,7 +84,7 @@ var _ = Context("attester", func() {
 			att, err := createAttester(attesterName, policyModule, false)
 			Expect(err).ToNot(HaveOccurred())
 
-			verifyRequest := &VerifyRequest{Occurrence: nil}
+			verifyRequest := &attester.VerifyRequest{Occurrence: nil}
 
 			err = att.Verify(ctx, verifyRequest)
 			Expect(err).To(HaveOccurred())
@@ -101,7 +102,7 @@ var _ = Context("attester", func() {
 			newAttester, err := createAttester(attesterName, policyModule, false)
 			Expect(err).ToNot(HaveOccurred())
 
-			req := &VerifyRequest{response.Attestation}
+			req := &attester.VerifyRequest{response.Attestation}
 			err = newAttester.Verify(ctx, req)
 
 			Expect(err).To(HaveOccurred())
@@ -116,7 +117,7 @@ var _ = Context("attester", func() {
 			response, err := att.Attest(ctx, attestRequest)
 			Expect(err).ToNot(HaveOccurred())
 
-			verifyRequest := &VerifyRequest{response.Attestation}
+			verifyRequest := &attester.VerifyRequest{response.Attestation}
 
 			err = att.Verify(ctx, verifyRequest)
 			Expect(err).NotTo(HaveOccurred())
@@ -125,13 +126,13 @@ var _ = Context("attester", func() {
 
 	When("the attestation is printed", func() {
 		It("should display the struct name and signer info", func() {
-			policy, err := NewPolicy(attesterName, policyModule, true)
+			policy, err := attester.NewPolicy(attesterName, policyModule, true)
 			Expect(err).ToNot(HaveOccurred())
 
-			signer, err := NewSigner(attesterName)
+			signer, err := attester.NewSigner(attesterName)
 			Expect(err).ToNot(HaveOccurred())
 
-			att := NewAttester(attesterName, policy, signer)
+			att := attester.NewAttester(attesterName, policy, signer)
 
 			expectedAttestation := strings.Join([]string{
 				"Attester",
@@ -155,23 +156,23 @@ var _ = Context("attester", func() {
 
 	When("the key id getter is called", func() {
 		It("should return the signer's keyID", func() {
-			policy, err := NewPolicy(attesterName, policyModule, true)
+			policy, err := attester.NewPolicy(attesterName, policyModule, true)
 			Expect(err).ToNot(HaveOccurred())
 
-			signer, err := NewSigner(attesterName)
+			signer, err := attester.NewSigner(attesterName)
 			Expect(err).ToNot(HaveOccurred())
 
-			att := NewAttester(attesterName, policy, signer)
+			att := attester.NewAttester(attesterName, policy, signer)
 
 			Expect(att.KeyID()).To(Equal(signer.KeyID()))
 		})
 	})
 
 	When("an attester list is created", func() {
-		var attesterList *List
+		var attesterList *attester.List
 
 		BeforeEach(func() {
-			attesterList = NewList()
+			attesterList = attester.NewList()
 		})
 
 		It("should be returned", func() {
@@ -222,13 +223,13 @@ var _ = Context("attester", func() {
 		})
 
 		It("should be able to find an attester by key ID", func() {
-			policy, err := NewPolicy(attesterName, policyModule, true)
+			policy, err := attester.NewPolicy(attesterName, policyModule, true)
 			Expect(err).ToNot(HaveOccurred())
 
-			signer, err := NewSigner(attesterName)
+			signer, err := attester.NewSigner(attesterName)
 			Expect(err).ToNot(HaveOccurred())
 
-			att := NewAttester(attesterName, policy, signer)
+			att := attester.NewAttester(attesterName, policy, signer)
 
 			otherAttester, err := createAttester(fmt.Sprintf("attester%s", rand.String(10)), policyModule, false)
 			Expect(err).ToNot(HaveOccurred())
@@ -242,14 +243,14 @@ var _ = Context("attester", func() {
 		})
 
 		It("should be able to find multiple attesters with the same key ID", func() {
-			policy, err := NewPolicy(attesterName, policyModule, true)
+			policy, err := attester.NewPolicy(attesterName, policyModule, true)
 			Expect(err).ToNot(HaveOccurred())
 
-			signer, err := NewSigner(attesterName)
+			signer, err := attester.NewSigner(attesterName)
 			Expect(err).ToNot(HaveOccurred())
 
-			att := NewAttester(attesterName, policy, signer)
-			otherAttester := NewAttester(fmt.Sprintf("attester%s", rand.String(10)), policy, signer)
+			att := attester.NewAttester(attesterName, policy, signer)
+			otherAttester := attester.NewAttester(fmt.Sprintf("attester%s", rand.String(10)), policy, signer)
 			Expect(err).ToNot(HaveOccurred())
 
 			thirdAttester, err := createAttester(fmt.Sprintf("attester%s", rand.String(10)), policyModule, false)
@@ -269,23 +270,23 @@ var _ = Context("attester", func() {
 	})
 })
 
-func createAttester(attesterName string, policyModule string, badSigner bool) (Attester, error) {
-	policy, err := NewPolicy(attesterName, policyModule, true)
+func createAttester(attesterName string, policyModule string, badSigner bool) (attester.Attester, error) {
+	policy, err := attester.NewPolicy(attesterName, policyModule, true)
 	if err != nil {
 		return nil, err
 	}
 
 	if badSigner {
 		signer := &FakeSigner{name: attesterName}
-		return NewAttester(attesterName, policy, signer), nil
+		return attester.NewAttester(attesterName, policy, signer), nil
 	}
 
-	signer, err := NewSigner(attesterName)
+	signer, err := attester.NewSigner(attesterName)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewAttester(attesterName, policy, signer), nil
+	return attester.NewAttester(attesterName, policy, signer), nil
 }
 
 type FakeSigner struct {
