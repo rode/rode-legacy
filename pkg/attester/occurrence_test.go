@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FContext("occurrence", func() {
+var _ = Context("occurrence", func() {
 	var (
 		ctx      context.Context
 		mockCtrl *gomock.Controller
@@ -203,6 +203,61 @@ var _ = FContext("occurrence", func() {
 					EXPECT().
 					Attest(ctx, gomock.Any()).
 					Return(nil, fmt.Errorf("non-violation error"))
+
+				err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
+
+				Expect(err).NotTo(BeNil())
+			})
+
+			It("should return an error if storing the attestation fails", func() {
+				mockOccurrenceCreator.
+					EXPECT().
+					CreateOccurrences(gomock.Any(), gomock.Any())
+
+				mockOccurrenceCreator.
+					EXPECT().
+					CreateOccurrences(gomock.Any(), gomock.Any()).
+					Return(fmt.Errorf("error storing attestation"))
+
+				mockOccurrenceLister.
+					EXPECT().
+					ListOccurrences(ctx, attesterName).
+					Return(allOccurrences, nil)
+
+				att.
+					EXPECT().
+					Attest(ctx, gomock.Any()).
+					Return(&attester.AttestResponse{
+						Attestation: attestOccurrence,
+					}, nil)
+
+				err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
+
+				Expect(err).NotTo(BeNil())
+			})
+
+			It("should return an error if publishing the attestation fails", func() {
+				mockOccurrenceCreator.
+					EXPECT().
+					CreateOccurrences(gomock.Any(), gomock.Any()).
+					AnyTimes()
+
+				mockOccurrenceLister.
+					EXPECT().
+					ListOccurrences(ctx, attesterName).
+					Return(allOccurrences, nil)
+
+				att.
+					EXPECT().
+					Attest(ctx, gomock.Any()).
+					Return(&attester.AttestResponse{
+						Attestation: attestOccurrence,
+					}, nil)
+
+				eventManager.
+					EXPECT().
+					Publish(gomock.Any(), gomock.Any()).
+					Return(fmt.Errorf("error publishing to stream"))
 
 				err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
 
