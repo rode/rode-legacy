@@ -9,19 +9,22 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/golang/mock/gomock"
+	attestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
+	grafeasCommon "github.com/grafeas/grafeas/proto/v1beta1/common_go_proto"
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/liatrio/rode/mock/pkg/mock_attester"
+	"github.com/liatrio/rode/mock/pkg/mock_eventmanager"
 	"github.com/liatrio/rode/mock/pkg/mock_occurrence"
-	"github.com/liatrio/rode/pkg/eventmanager"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Context("occurrence", func() {
+var _ = FContext("occurrence", func() {
 	var (
 		ctx      context.Context
 		mockCtrl *gomock.Controller
@@ -30,10 +33,10 @@ var _ = Context("occurrence", func() {
 		mockOccurrenceCreator *mock_occurrence.MockCreator
 		mockOccurrenceLister  *mock_occurrence.MockLister
 		mockAttesterLister    *mock_attester.MockLister
-		eventManager          eventmanager.EventManager
+		eventManager          *mock_eventmanager.MockEventManager
 
-		grafeasOccurrence   *grafeas.Occurrence
-		attesterName string
+		grafeasOccurrence *grafeas.Occurrence
+		attesterName      string
 
 		attestWrapper occurrence.Creator
 	)
@@ -46,11 +49,10 @@ var _ = Context("occurrence", func() {
 		mockAttesterLister = mock_attester.NewMockLister(mockCtrl)
 
 		log = ctrl.Log.WithName("occurences").WithName("GrafeasClient")
-		eventManager = eventmanager.NewEventManagerNone(log)
-
+		eventManager = mock_eventmanager.NewMockEventManager(mockCtrl)
 
 		attesterName = fmt.Sprintf("attester%s", rand.String(10))
-		grafeasOccurrence = createTestOccurrence(attesterName)
+		grafeasOccurrence = createSuccessfulOccurrence(attesterName)
 		attestWrapper = attester.NewAttestWrapper(
 			log,
 			mockOccurrenceCreator,
@@ -60,54 +62,157 @@ var _ = Context("occurrence", func() {
 		)
 	})
 
-	FWhen("CreateOccurrences", func() {
+	AfterEach(func() {
+		mockCtrl.Finish()
+	})
+
+	When("CreateOccurrences", func() {
+		var (
+			attesterList     map[string]attester.Attester
+			allOccurrences   []*grafeas.Occurrence
+			att              *mock_attester.MockAttester
+			attestOccurrence *grafeas.Occurrence
+		)
+
+		BeforeEach(func() {
+			att = mock_attester.NewMockAttester(mockCtrl)
+			att.EXPECT().Name().Return(attesterName).AnyTimes()
+
+			attesterList = make(map[string]attester.Attester)
+			attesterList[attesterName] = att
+
+			attestOccurrence = createAttestOccurrence(attesterName)
+
+			mockAttesterLister.
+				EXPECT().
+				ListAttesters().
+				Return(attesterList).
+				AnyTimes()
+
+			allOccurrences = []*grafeas.Occurrence{
+				grafeasOccurrence,
+				createSuccessfulOccurrence("foo"),
+			}
+		})
+
 		It("should return early if there are no occurrences", func() {
 			err := attestWrapper.CreateOccurrences(ctx)
 
 			Expect(err).To(BeNil())
 		})
 
-		It("create the occurrences using the delegate", func() {
+		It("should create the occurrences and publish a message", func() {
 			mockOccurrenceCreator.
 				EXPECT().
 				CreateOccurrences(ctx, grafeasOccurrence)
+
+			mockOccurrenceCreator.
+				EXPECT().
+				CreateOccurrences(ctx, attestOccurrence)
+
 			mockOccurrenceLister.
 				EXPECT().
-				ListOccurrences(ctx, attesterName)
-			mockAttesterLister.EXPECT().ListAttesters()
+				ListOccurrences(ctx, attesterName).
+				Return(allOccurrences, nil)
+
+			att.
+				EXPECT().
+				Attest(ctx, gomock.Any()).
+				Return(&attester.AttestResponse{
+					Attestation: attestOccurrence,
+				}, nil)
+
+			eventManager.
+				EXPECT().
+				Publish(attesterName, attestOccurrence).
+				Return(nil)
 
 			err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
 
 			Expect(err).To(BeNil())
 		})
 
-		It("should publish verified attestations", func() {
-			allOccurrences := []*grafeas.Occurrence{
-				grafeasOccurrence,
-				createTestOccurrence("foo"),
-			}
-			//att, err := createAttester(attesterName, "", false)
-			//Expect(err).To(BeNil())
-			att := mock_attester.NewMockAttester(mockCtrl)
+		Context("error cases", func() {
 
-			attesterList := make(map[string]attester.Attester)
-			attesterList[attesterName] = att
+			It("should return the error when create occurrence fails", func() {
+				mockOccurrenceCreator.
+					EXPECT().
+					CreateOccurrences(gomock.Any(), gomock.Any()).
+					Return(fmt.Errorf("create occurrence failed"))
+				eventManager.
+					EXPECT().
+					Publish(gomock.Any(), gomock.Any()).
+					Times(0)
 
-			mockOccurrenceCreator.EXPECT().CreateOccurrences(gomock.Any(), gomock.Any())
-			mockOccurrenceLister.EXPECT().
-				ListOccurrences(gomock.Any(), gomock.Any()).
-				Return(allOccurrences, nil)
-			mockAttesterLister.EXPECT().ListAttesters().Return(attesterList)
-			att.EXPECT().Attest(ctx, gomock.Any())
+				err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
 
-			err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
-			Expect(err).To(BeNil())
+				Expect(err).NotTo(BeNil())
+			})
 
+			It("should return the error when listing occurrences fails", func() {
+				mockOccurrenceCreator.
+					EXPECT().
+					CreateOccurrences(gomock.Any(), gomock.Any())
+				mockOccurrenceLister.
+					EXPECT().
+					ListOccurrences(ctx, attesterName).
+					Return(nil, fmt.Errorf("failed to list occurrences"))
+
+				err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
+
+				Expect(err).NotTo(BeNil())
+			})
+
+			It("should not create an attestation when the attest returns a violation error", func() {
+				mockOccurrenceCreator.
+					EXPECT().
+					CreateOccurrences(gomock.Any(), gomock.Any()).
+					Times(1)
+
+				mockOccurrenceLister.
+					EXPECT().
+					ListOccurrences(ctx, attesterName).
+					Return(allOccurrences, nil)
+
+				violationErr := attester.ViolationError{
+					Violations: []*attester.Violation{},
+				}
+
+				att.
+					EXPECT().
+					Attest(ctx, gomock.Any()).
+					Return(nil, violationErr)
+
+				err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
+
+				Expect(err).To(BeNil())
+			})
+
+			It("should return any non-violation errors from the attester", func() {
+				mockOccurrenceCreator.
+					EXPECT().
+					CreateOccurrences(gomock.Any(), gomock.Any()).
+					Times(1)
+
+				mockOccurrenceLister.
+					EXPECT().
+					ListOccurrences(ctx, attesterName).
+					Return(allOccurrences, nil)
+
+				att.
+					EXPECT().
+					Attest(ctx, gomock.Any()).
+					Return(nil, fmt.Errorf("non-violation error"))
+
+				err := attestWrapper.CreateOccurrences(ctx, grafeasOccurrence)
+
+				Expect(err).NotTo(BeNil())
+			})
 		})
 	})
 })
 
-func createTestOccurrence(attesterName string) *grafeas.Occurrence {
+func createSuccessfulOccurrence(attesterName string) *grafeas.Occurrence {
 	return &grafeas.Occurrence{
 		Resource: &grafeas.Resource{
 			Uri: attesterName,
@@ -117,6 +222,31 @@ func createTestOccurrence(attesterName string) *grafeas.Occurrence {
 			Discovered: &discovery.Details{
 				Discovered: &discovery.Discovered{
 					AnalysisStatus: discovery.Discovered_FINISHED_SUCCESS,
+				},
+			},
+		},
+	}
+}
+
+func createAttestOccurrence(attesterName string) *grafeas.Occurrence {
+	return &grafeas.Occurrence{
+		Resource: &grafeas.Resource{
+			Uri: attesterName,
+		},
+		NoteName: fmt.Sprintf("projects/rode/notes/%s", attesterName),
+		Kind:     grafeasCommon.NoteKind_ATTESTATION,
+		Details: &grafeas.Occurrence_Attestation{
+			Attestation: &attestation.Details{
+				Attestation: &attestation.Attestation{
+					Signature: &attestation.Attestation_PgpSignedAttestation{
+						PgpSignedAttestation: &attestation.PgpSignedAttestation{
+							ContentType: attestation.PgpSignedAttestation_CONTENT_TYPE_UNSPECIFIED,
+							Signature:   rand.String(10),
+							KeyId: &attestation.PgpSignedAttestation_PgpKeyId{
+								PgpKeyId: rand.String(10),
+							},
+						},
+					},
 				},
 			},
 		},
