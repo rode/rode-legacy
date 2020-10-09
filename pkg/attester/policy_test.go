@@ -3,16 +3,20 @@ package attester
 import (
 	"context"
 	"encoding/json"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
-func TestClient_Evaluate(t *testing.T) {
-	assert := assert.New(t)
-	ctx := context.Background()
+var _ = Context("policy", func() {
+	var (
+		ctx context.Context
+		policy string
+	)
 
-	module := `
+	BeforeEach(func() {
+		ctx = context.Background()
+
+		policy = `
 package mytest
 
 violation[{"msg":"v1"}]{
@@ -22,25 +26,73 @@ violation[{"msg": "v2"}] {
 	input.a = "z"
 }
 `
-	c, err := NewPolicy("mytest", module, true)
-	assert.NoError(err)
+	})
 
-	input := map[string]string{
-		"foo": "no",
-		"a":   "no",
-	}
+	It("should not return violations when the occurrence is valid", func() {
+		c, err := NewPolicy("mytest", policy, true)
+		Expect(err).To(BeNil())
 
-	res := c.Evaluate(ctx, input)
-	assert.Empty(res, "evaluation")
 
-	input2 := map[string]string{
-		"foo": "bar",
-		"a":   "z",
-	}
+		validInput := map[string]string{
+			"foo": "no",
+			"a":   "no",
+		}
 
-	res = c.Evaluate(ctx, input2)
-	assert.NotEmpty(res, "evaluation")
-}
+		violations := c.Evaluate(ctx, validInput)
+		Expect(violations).To(BeEmpty())
+	})
+
+	It("should return violations when the occurrence is invalid", func() {
+		c, err := NewPolicy("mytest", policy, true)
+		Expect(err).To(BeNil())
+
+		invalidInput := map[string]string{
+			"foo": "bar",
+			"a":   "z",
+		}
+
+		violations := c.Evaluate(ctx, invalidInput)
+		Expect(violations).ToNot(BeEmpty())
+	})
+
+	Context("grafeas", func() {
+
+		It("should return violations when the ECR scan fails", func() {
+			violations, err := evalAttestationRego(ctx, failDiscoveryOccurrences)
+
+			Expect(err).To(BeNil())
+			Expect(violations).ToNot(BeEmpty())
+		})
+
+		It("should not return violations when there are no occurrences ", func() {
+			violations, err := evalAttestationRego(ctx, emptyOccurrences)
+
+			Expect(err).To(BeNil())
+			Expect(violations).ToNot(BeEmpty())
+		})
+
+		It("should not return violations when the ECR scan is successful", func() {
+			violations, err := evalAttestationRego(ctx, successDiscoveryOccurrences)
+
+			Expect(err).To(BeNil())
+			Expect(violations).To(BeEmpty())
+		})
+
+		It("should return violations for high severity violations", func() {
+			violations, err := evalAttestationRego(ctx, highVuln)
+
+			Expect(err).To(BeNil())
+			Expect(violations).ToNot(BeEmpty())
+		})
+
+		It("should not return violations for low severity vulnerabilities", func() {
+			violations, err := evalAttestationRego(ctx, lowVuln)
+
+			Expect(err).To(BeNil())
+			Expect(violations).To(BeEmpty())
+		})
+	})
+})
 
 var emptyOccurrences = `{"occurrences": []}`
 var successDiscoveryOccurrences = `{"occurrences": [
@@ -170,7 +222,7 @@ var lowVuln = `{"occurrences": [
     }
 ]}`
 
-var attenstationRego = `
+var attestationRego = `
 package default_attester
 violation[{"msg":"analysis failed"}]{
 	input.occurrences[_].discovered.discovered.analysisStatus != "FINISHED_SUCCESS"
@@ -190,35 +242,15 @@ severityCount(severity) = cnt {
 }
 `
 
-func TestClient_EvaluateGrafeas(t *testing.T) {
-	assert := assert.New(t)
-
-	res := evalAttenstationRego(failDiscoveryOccurrences)
-	assert.NotEmpty(res, "evaluation")
-
-	res = evalAttenstationRego(emptyOccurrences)
-	assert.NotEmpty(res, "evaluation")
-
-	res = evalAttenstationRego(successDiscoveryOccurrences)
-	assert.Empty(res, "evaluation")
-
-	res = evalAttenstationRego(highVuln)
-	assert.NotEmpty(res, "evaluation")
-
-	res = evalAttenstationRego(lowVuln)
-	assert.Empty(res, "evaluation")
-}
-
-func evalAttenstationRego(occurrencesJSON string) []*Violation {
-	ctx := context.Background()
-	c, err := NewPolicy("default_attester", attenstationRego, true)
+func evalAttestationRego(ctx context.Context, occurrencesJSON string) ([]*Violation, error) {
+	c, err := NewPolicy("default_attester", attestationRego, true)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	listOccurrences := make(map[string]interface{})
 	err = json.Unmarshal([]byte(occurrencesJSON), &listOccurrences)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return c.Evaluate(ctx, listOccurrences)
+	return c.Evaluate(ctx, listOccurrences), nil
 }
