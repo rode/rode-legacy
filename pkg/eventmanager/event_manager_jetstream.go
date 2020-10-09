@@ -16,6 +16,7 @@ import (
 )
 
 type JetstreamClient struct {
+	initialized       bool
 	log               logr.Logger
 	url               string
 	CTX               context.Context
@@ -41,6 +42,35 @@ func (c *JetstreamClient) new() (*nats.Conn, error) {
 	return nc, nil
 }
 
+func (c *JetstreamClient) Initialize(attesterName string) error {
+	log := c.log.WithName("Initialize()").WithValues("attester", attesterName)
+
+	if c.initialized {
+		return nil
+	}
+
+	nc, err := c.new()
+	if err != nil {
+		return err
+	}
+
+	_, err = jsm.NewStream(
+		"ATTESTATION",
+		jsm.Subjects("ATTESTATION.*"),
+		jsm.StreamConnection(jsm.WithConnection(nc)),
+		jsm.MaxAge(24*365*time.Hour),
+		jsm.FileStorage())
+
+	if err != nil {
+		return err
+	}
+
+	c.initialized = true
+	log.Info("Created stream ATTESTATION")
+
+	return nil
+}
+
 func (c *JetstreamClient) Publish(attesterName string, occurrence *grafeas.Occurrence) error {
 	log := c.log.WithName("Publish()").WithValues("attester", attesterName)
 
@@ -49,12 +79,8 @@ func (c *JetstreamClient) Publish(attesterName string, occurrence *grafeas.Occur
 		return err
 	}
 
-	_, err = jsm.LoadOrNewStream(
-		"ATTESTATION",
-		jsm.Subjects("ATTESTATION.*"),
-		jsm.StreamConnection(jsm.WithConnection(nc)),
-		jsm.MaxAge(24*365*time.Hour),
-		jsm.FileStorage())
+	_, err = jsm.LoadStream("ATTESTATION", jsm.WithConnection(nc))
+
 	if err != nil {
 		return err
 	}
