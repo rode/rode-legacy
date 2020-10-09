@@ -5,6 +5,8 @@ MINOR_VERSION = $(word 2, $(subst ., ,$(VERSION)))
 PATCH_VERSION = $(word 3, $(subst ., ,$(word 1,$(subst -, , $(VERSION)))))
 NEW_VERSION ?= $(MAJOR_VERSION).$(MINOR_VERSION).$(shell echo $$(( $(PATCH_VERSION) + 1)) )
 
+.PHONY: test install uninstall manifests fmt vet generate unit mockgen
+
 # Produce CRDs that work back to Kubernetes 1.11 (no version conversion)
 CRD_OPTIONS ?= "crd:trivialVersions=true"
 
@@ -40,6 +42,12 @@ fmt:
 # Run go vet against code
 vet:
 	go vet ./...
+
+unit:
+	go test -cover -tags unit ./...
+
+mockgen:
+	go generate ./...
 
 # Generate code
 generate: controller-gen
