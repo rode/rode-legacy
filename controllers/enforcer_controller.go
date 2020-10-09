@@ -89,11 +89,11 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, nil
 	}
 
-	if listenerStatus := enforcer.GetConditionStatus(rodev1alpha1.ConditionListener); listenerStatus != rodev1alpha1.ConditionStatusTrue {
+	if streamStatus := enforcer.GetConditionStatus(rodev1alpha1.ConditionStream); streamStatus != rodev1alpha1.ConditionStatusTrue {
 		for _, enforcerAttester := range enforcer.Attesters() {
 			if err = r.EventManager.Subscribe(types.NamespacedName{Name: enforcerAttester.Name, Namespace: enforcerAttester.Namespace}.String()); err != nil {
 				log.Error(err, "Error subscribing to stream")
-				enforcer.SetCondition(rodev1alpha1.ConditionListener, rodev1alpha1.ConditionStatusFalse, "Subscribe to attester messages failed")
+				enforcer.SetCondition(rodev1alpha1.ConditionStream, rodev1alpha1.ConditionStatusFalse, "Subscribe to attester messages failed")
 				if updateErr := r.Update(ctx, enforcer.(runtime.Object)); updateErr != nil {
 					log.Error(updateErr, "Error updating enforcer status")
 					return ctrl.Result{}, updateErr
@@ -101,7 +101,7 @@ func (r *EnforcerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				return ctrl.Result{}, err
 			}
 
-			enforcer.SetCondition(rodev1alpha1.ConditionListener, rodev1alpha1.ConditionStatusTrue, "Subscribe to attester message succeeded")
+			enforcer.SetCondition(rodev1alpha1.ConditionStream, rodev1alpha1.ConditionStatusTrue, "Subscribe to attester message succeeded")
 			if err = r.Update(ctx, enforcer.(runtime.Object)); err != nil {
 				log.Error(err, "Error updating enforcer status")
 				return ctrl.Result{}, err

@@ -27,7 +27,6 @@ const (
 	ConditionCompiled ConditionType = "Policy"
 	ConditionSecret   ConditionType = "Key"
 	ConditionStream   ConditionType = "Stream"
-	ConditionListener ConditionType = "Listener"
 )
 
 // +k8s:deepcopy-gen=false
