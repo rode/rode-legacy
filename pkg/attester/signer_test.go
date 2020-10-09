@@ -1,29 +1,50 @@
 package attester
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+	"fmt"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-func TestSigner(t *testing.T) {
-	assert := assert.New(t)
+var _ = Context("signer", func() {
+	var (
+		signer Signer
+		signerName string
+		message string
+	)
 
-	signer, err := NewSigner("foo")
-	assert.NoError(err)
-	assert.NotNil(signer)
+	BeforeEach(func() {
+		signerName = fmt.Sprintf("signer-%s", rand.String(10))
+		message = fmt.Sprintf("message-%s", rand.String(10))
+		var err error
+		signer, err = NewSigner(signerName)
+		Expect(err).To(BeNil())
+	})
 
-	message := "hello world!"
-	signedMessage, err := signer.Sign(message)
-	assert.NoError(err)
+	It("should sign messages without error", func() {
+		_, err := signer.Sign(message)
 
-	verifiedMessage, err := signer.Verify(signedMessage)
-	assert.NoError(err)
-	assert.Equal(message, verifiedMessage)
+		Expect(err).To(BeNil())
+	})
 
-	_, err = signer.Verify("foobar")
-	assert.Error(err)
+	It("should verify signed messages", func() {
+		signedMessage, err := signer.Sign(message)
+		Expect(err).To(BeNil())
 
-	keyID := signer.KeyID()
-	assert.NotEmpty(keyID)
-}
+		verifiedMessage, err := signer.Verify(signedMessage)
+
+		Expect(err).To(BeNil())
+		Expect(verifiedMessage).To(Equal(message))
+	})
+
+	It("should fail to verify unsigned messages", func() {
+		_, err := signer.Verify(rand.String(10))
+
+		Expect(err).NotTo(BeNil())
+	})
+
+	It("should return the keyID", func() {
+		Expect(signer.KeyID()).NotTo(BeEmpty())
+	})
+})
