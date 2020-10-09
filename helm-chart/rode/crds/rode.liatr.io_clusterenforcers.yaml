@@ -9,8 +9,8 @@ metadata:
   name: clusterenforcers.rode.liatr.io
 spec:
   additionalPrinterColumns:
-    - JSONPath: .status.conditions[?(@.type=="Listener")].status
-      name: Listener
+    - JSONPath: .status.conditions[?(@.type=="Stream")].status
+      name: Stream
       type: string  
     - JSONPath: .status.conditions[?(@.type=="Key")].status
       name: Attester Keys

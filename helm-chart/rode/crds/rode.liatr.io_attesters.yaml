@@ -15,6 +15,9 @@ spec:
   - JSONPath: .status.conditions[?(@.type=="Key")].status
     name: Key
     type: string
+  - JSONPath: .status.conditions[?(@.type=="Stream")].status
+    name: Stream
+    type: string
   - JSONPath: .metadata.creationTimestamp
     name: Age
     type: date
