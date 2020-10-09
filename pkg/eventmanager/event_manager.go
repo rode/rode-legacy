@@ -5,6 +5,7 @@ import (
 )
 
 type EventManager interface {
+	Initialize(attesterName string) error
 	Publish(attesterName string, occurrence *grafeas.Occurrence) error
 	Subscribe(attesterName string) error
 	Unsubscribe(attesterName string) error
