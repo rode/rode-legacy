@@ -9,7 +9,7 @@ import (
 
 var _ = Context("policy", func() {
 	var (
-		ctx context.Context
+		ctx    context.Context
 		policy string
 	)
 
@@ -31,7 +31,6 @@ violation[{"msg": "v2"}] {
 	It("should not return violations when the occurrence is valid", func() {
 		c, err := NewPolicy("mytest", policy, true)
 		Expect(err).To(BeNil())
-
 
 		validInput := map[string]string{
 			"foo": "no",

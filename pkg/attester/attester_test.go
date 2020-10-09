@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/util/rand"
 	"github.com/liatrio/rode/pkg/attester"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	discovery "github.com/grafeas/grafeas/proto/v1beta1/discovery_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"

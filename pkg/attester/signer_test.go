@@ -9,9 +9,9 @@ import (
 
 var _ = Context("signer", func() {
 	var (
-		signer Signer
+		signer     Signer
 		signerName string
-		message string
+		message    string
 	)
 
 	BeforeEach(func() {
