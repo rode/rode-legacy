@@ -16,9 +16,9 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/liatrio/rode/mock/pkg/mock_attester"
-	"github.com/liatrio/rode/mock/pkg/mock_eventmanager"
-	"github.com/liatrio/rode/mock/pkg/mock_occurrence"
+	"github.com/liatrio/rode/mocks/pkg/attester_mock"
+	"github.com/liatrio/rode/mocks/pkg/eventmanager_mock"
+	"github.com/liatrio/rode/mocks/pkg/occurrence_mock"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,10 +30,10 @@ var _ = Context("occurrence", func() {
 		mockCtrl *gomock.Controller
 		log      logr.Logger
 
-		mockOccurrenceCreator *mock_occurrence.MockCreator
-		mockOccurrenceLister  *mock_occurrence.MockLister
-		mockAttesterLister    *mock_attester.MockLister
-		eventManager          *mock_eventmanager.MockEventManager
+		mockOccurrenceCreator *occurrence_mock.MockCreator
+		mockOccurrenceLister  *occurrence_mock.MockLister
+		mockAttesterLister    *attester_mock.MockLister
+		eventManager          *eventmanager_mock.MockEventManager
 
 		grafeasOccurrence *grafeas.Occurrence
 		attesterName      string
@@ -44,12 +44,12 @@ var _ = Context("occurrence", func() {
 	BeforeEach(func() {
 		mockCtrl = gomock.NewController(GinkgoT())
 		ctx = context.TODO()
-		mockOccurrenceCreator = mock_occurrence.NewMockCreator(mockCtrl)
-		mockOccurrenceLister = mock_occurrence.NewMockLister(mockCtrl)
-		mockAttesterLister = mock_attester.NewMockLister(mockCtrl)
+		mockOccurrenceCreator = occurrence_mock.NewMockCreator(mockCtrl)
+		mockOccurrenceLister = occurrence_mock.NewMockLister(mockCtrl)
+		mockAttesterLister = attester_mock.NewMockLister(mockCtrl)
 
 		log = ctrl.Log.WithName("occurences").WithName("GrafeasClient")
-		eventManager = mock_eventmanager.NewMockEventManager(mockCtrl)
+		eventManager = eventmanager_mock.NewMockEventManager(mockCtrl)
 
 		attesterName = fmt.Sprintf("attester%s", rand.String(10))
 		grafeasOccurrence = createSuccessfulOccurrence(attesterName)
@@ -70,12 +70,12 @@ var _ = Context("occurrence", func() {
 		var (
 			attesterList     map[string]attester.Attester
 			allOccurrences   []*grafeas.Occurrence
-			att              *mock_attester.MockAttester
+			att              *attester_mock.MockAttester
 			attestOccurrence *grafeas.Occurrence
 		)
 
 		BeforeEach(func() {
-			att = mock_attester.NewMockAttester(mockCtrl)
+			att = attester_mock.NewMockAttester(mockCtrl)
 			att.EXPECT().Name().Return(attesterName).AnyTimes()
 
 			attesterList = make(map[string]attester.Attester)

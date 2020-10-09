@@ -6,6 +6,8 @@ import (
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 )
 
+//go:generate mockgen -destination=../../mocks/pkg/occurrence_mock/types.go -package=occurrence_mock . Lister,Creator
+
 // Lister implements the listing of occurrences
 type Lister interface {
 	ListOccurrences(ctx context.Context, resourceURI string) ([]*grafeas.Occurrence, error)

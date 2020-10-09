@@ -10,6 +10,8 @@ import (
 	"github.com/liatrio/rode/pkg/occurrence"
 )
 
+//go:generate mockgen -destination=../../mocks/pkg/attester_mock/occurrence.go -package=attester_mock . Lister
+
 // Lister is an interface for listing Attesters
 type Lister interface {
 	ListAttesters() map[string]Attester

@@ -12,6 +12,8 @@ import (
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
 )
 
+//go:generate mockgen -destination=../../mocks/pkg/attester_mock/attester.go -package=attester_mock . Attester
+
 type attester struct {
 	projectID string
 	name      string
