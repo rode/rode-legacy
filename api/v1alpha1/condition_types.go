@@ -23,11 +23,11 @@ type Condition struct {
 type ConditionType string
 
 const (
-	ConditionActive      ConditionType = "Active"
-	ConditionCompiled    ConditionType = "Policy"
-	ConditionSecret      ConditionType = "Key"
-	ConditionInitialized ConditionType = "Stream"
-	ConditionListener    ConditionType = "Listener"
+	ConditionActive   ConditionType = "Active"
+	ConditionCompiled ConditionType = "Policy"
+	ConditionSecret   ConditionType = "Key"
+	ConditionStream   ConditionType = "Stream"
+	ConditionListener ConditionType = "Listener"
 )
 
 // +k8s:deepcopy-gen=false
