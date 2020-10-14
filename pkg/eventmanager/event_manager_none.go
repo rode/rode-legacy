@@ -18,7 +18,7 @@ func (emn *eventManagerNone) Initialize(attesterName string) error {
 	return nil
 }
 
-func (emn *eventManagerNone) Publish(attesterName string, occurrence *grafeas.Occurrence) error {
+func (emn *eventManagerNone) PublishAttestation(attesterName string, occurrence *grafeas.Occurrence) error {
 	emn.log.V(1).Info("Using dummy event manager. No message will by published")
 	return nil
 }

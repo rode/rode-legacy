@@ -83,7 +83,7 @@ func (a *attestWrapper) CreateOccurrences(ctx context.Context, occurrences ...*g
 					if err != nil {
 						return fmt.Errorf("unable to store attestation for occurrence %v", err)
 					}
-					err = a.aem.Publish(att.Name(), resp.Attestation)
+					err = a.aem.PublishAttestation(att.Name(), resp.Attestation)
 					if err != nil {
 						return fmt.Errorf("unable to publish attestation event: %s", err)
 					}

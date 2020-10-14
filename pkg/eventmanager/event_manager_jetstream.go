@@ -71,8 +71,8 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 	return nil
 }
 
-func (c *JetstreamClient) Publish(attesterName string, occurrence *grafeas.Occurrence) error {
-	log := c.log.WithName("Publish()").WithValues("attester", attesterName)
+func (c *JetstreamClient) PublishAttestation(attesterName string, occurrence *grafeas.Occurrence) error {
+	log := c.log.WithName("PublishAttestation()").WithValues("attester", attesterName)
 
 	nc, err := c.new()
 	if err != nil {
