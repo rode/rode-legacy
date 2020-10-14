@@ -2,6 +2,7 @@ package eventmanager
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -65,8 +66,21 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 		return err
 	}
 
-	c.initialized = true
 	log.Info("Created stream ATTESTATION")
+
+	_, err = jsm.NewStream(
+		"ATTESTATION_KEY",
+		jsm.Subjects("ATTESTATION_KEY.*"),
+		jsm.StreamConnection(jsm.WithConnection(nc)),
+		jsm.MaxAge(24*365*time.Hour),
+		jsm.FileStorage())
+
+	if err != nil {
+		return err
+	}
+
+	log.Info("Created stream ATTESTATION_KEY")
+	c.initialized = true
 
 	return nil
 }
@@ -94,6 +108,33 @@ func (c *JetstreamClient) PublishAttestation(attesterName string, occurrence *gr
 	subSubject := "ATTESTATION." + attesterName
 	log.Info("Publishing message", "subject", subSubject)
 	return nc.Publish(subSubject, messageData)
+}
+
+func (c *JetstreamClient) PublishPublicKey(attesterName string, publicKey []byte) error {
+	log := c.log.WithName("PublishPublicKey()").WithValues("attester", attesterName)
+
+	nc, err := c.new()
+	if err != nil {
+		return err
+	}
+	_, err = jsm.LoadStream("ATTESTATION_KEY", jsm.WithConnection(nc))
+
+	if err != nil {
+		return err
+	}
+
+	message, err := json.Marshal(&struct {
+		base64PublicKey string
+	}{
+		base64PublicKey: base64.StdEncoding.EncodeToString(publicKey),
+	})
+	if err != nil {
+		return err
+	}
+
+	subSubject := "ATTESTATION_KEY." + attesterName
+	log.Info("Publishing message", "subject", subSubject)
+	return nc.Publish(subSubject, message)
 }
 
 func (c *JetstreamClient) Subscribe(attester string) error {

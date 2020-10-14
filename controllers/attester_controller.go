@@ -221,6 +221,15 @@ func (r *AttesterReconciler) createSigner(ctx context.Context, attesterResource 
 			return nil, err
 		}
 
+		publicKey, err := signer.SerializePublicKey()
+		if err != nil {
+			return nil, err
+		}
+
+		if err = r.EventManager.PublishPublicKey(attesterResource.Name, publicKey); err != nil {
+			return nil, err
+		}
+
 		_, err = attester.CreateSecret(ctx, r.Client, attesterResource, signer)
 		if err != nil {
 			log.Error(err, "Error creating attester secret")
