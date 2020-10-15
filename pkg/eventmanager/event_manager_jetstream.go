@@ -5,18 +5,22 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	natsWrapper "github.com/liatrio/rode/pkg/nats"
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats.go"
+
 	"time"
 
 	grafeasAttestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
-	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/nats.go"
 
 	"github.com/go-logr/logr"
 	"github.com/liatrio/rode/pkg/occurrence"
 )
 
 type JetstreamClient struct {
+	connectionFactory  natsWrapper.ConnectionFactory
+	streamManager      natsWrapper.StreamManager
 	streamsInitialized map[string]bool
 	log                logr.Logger
 	url                string
@@ -25,7 +29,14 @@ type JetstreamClient struct {
 	Consumers          map[string]*JetstreamConsumer
 }
 
-func NewJetstreamClient(log logr.Logger, url string, occurrenceCreator occurrence.Creator) EventManager {
+func NewJetstreamClient(
+	log logr.Logger,
+	url string,
+	occurrenceCreator occurrence.Creator,
+	connectionFactory natsWrapper.ConnectionFactory,
+	streamManager natsWrapper.StreamManager,
+) EventManager {
+
 	return &JetstreamClient{
 		log: log.WithName("JetstreamClient"),
 		streamsInitialized: map[string]bool{
@@ -36,11 +47,13 @@ func NewJetstreamClient(log logr.Logger, url string, occurrenceCreator occurrenc
 		CTX:               context.Background(),
 		OccurrenceCreator: occurrenceCreator,
 		Consumers:         map[string]*JetstreamConsumer{},
+		connectionFactory: connectionFactory,
+		streamManager:     streamManager,
 	}
 }
 
 func (c *JetstreamClient) new() (*nats.Conn, error) {
-	return nats.Connect(c.url)
+	return c.connectionFactory.Connect(c.url)
 }
 
 func (c *JetstreamClient) Initialize(attesterName string) error {
@@ -63,12 +76,12 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 			}
 		}
 
-		_, err = jsm.NewStream(
+		_, err = c.streamManager.NewStream(
 			streamName,
-			jsm.Subjects(fmt.Sprintf("%s.*", streamName)),
-			jsm.StreamConnection(jsm.WithConnection(nc)),
-			jsm.MaxAge(24*365*time.Hour),
-			jsm.FileStorage())
+			c.streamManager.Subjects(fmt.Sprintf("%s.*", streamName)),
+			c.streamManager.StreamConnection(c.streamManager.WithConnection(nc)),
+			c.streamManager.MaxAge(24*365*time.Hour),
+			c.streamManager.FileStorage())
 
 		if err != nil {
 			return err
@@ -103,7 +116,7 @@ func (c *JetstreamClient) publish(streamName, attesterName string, message inter
 	if err != nil {
 		return err
 	}
-	_, err = jsm.LoadStream(streamName, jsm.WithConnection(nc))
+	_, err = c.streamManager.LoadStream(streamName, c.streamManager.WithConnection(nc))
 	jsonMessage, err := json.Marshal(message)
 	if err != nil {
 		return err
@@ -128,7 +141,7 @@ func (c *JetstreamClient) Subscribe(attester string) error {
 	} else {
 		log.Info("Creating new Jetstream Consumer")
 
-		stream, err := jsm.LoadStream("ATTESTATION", jsm.WithConnection(nc))
+		stream, err := c.streamManager.LoadStream("ATTESTATION", c.streamManager.WithConnection(nc))
 		if err != nil {
 			log.Error(err, "Error loading stream")
 			return err

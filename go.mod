@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/aws/aws-sdk-go v1.28.9
 	github.com/go-logr/logr v0.1.0
+	github.com/golang/mock v1.2.0
 	github.com/grafeas/grafeas v0.1.4
 	github.com/nats-io/jsm.go v0.0.18
 	github.com/nats-io/nats.go v1.10.1-0.20200606002146-fc6fed82929a

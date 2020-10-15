@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
+	natsWrapper "github.com/liatrio/rode/pkg/nats"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -124,7 +125,10 @@ func main() {
 		aem = eventmanager.NewJetstreamClient(
 			ctrl.Log,
 			os.Getenv("EVENT_STREAMER_ENDPOINT"),
-			grafeasClient)
+			grafeasClient,
+			natsWrapper.NewConnectionFactory(),
+			natsWrapper.NewStreamManager(),
+		)
 	default:
 		aem = eventmanager.NewEventManagerNone(ctrl.Log)
 		setupLog.Info("Using dummy event manager")
