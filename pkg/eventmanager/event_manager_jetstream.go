@@ -9,25 +9,29 @@ import (
 
 	grafeasAttestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
 	grafeas "github.com/grafeas/grafeas/proto/v1beta1/grafeas_go_proto"
-	jsm "github.com/nats-io/jsm.go"
-	nats "github.com/nats-io/nats.go"
+	"github.com/nats-io/jsm.go"
+	"github.com/nats-io/nats.go"
 
 	"github.com/go-logr/logr"
 	"github.com/liatrio/rode/pkg/occurrence"
 )
 
 type JetstreamClient struct {
-	initialized       bool
-	log               logr.Logger
-	url               string
-	CTX               context.Context
-	OccurrenceCreator occurrence.Creator
-	Consumers         map[string]*JetstreamConsumer
+	streamsInitialized map[string]bool
+	log                logr.Logger
+	url                string
+	CTX                context.Context
+	OccurrenceCreator  occurrence.Creator
+	Consumers          map[string]*JetstreamConsumer
 }
 
 func NewJetstreamClient(log logr.Logger, url string, occurrenceCreator occurrence.Creator) EventManager {
 	return &JetstreamClient{
-		log:               log.WithName("JetstreamClient"),
+		log: log.WithName("JetstreamClient"),
+		streamsInitialized: map[string]bool{
+			"ATTESTATION":     false,
+			"ATTESTATION_KEY": false,
+		},
 		url:               url,
 		CTX:               context.Background(),
 		OccurrenceCreator: occurrenceCreator,
@@ -35,52 +39,39 @@ func NewJetstreamClient(log logr.Logger, url string, occurrenceCreator occurrenc
 	}
 }
 
-func (c *JetstreamClient) new() (*nats.Conn, error) {
-	nc, err := nats.Connect(c.url)
-	if err != nil {
-		return nil, err
-	}
-	return nc, nil
-}
-
 func (c *JetstreamClient) Initialize(attesterName string) error {
 	log := c.log.WithName("Initialize()").WithValues("attester", attesterName)
 
-	if c.initialized {
-		return nil
+	var (
+		nc  *nats.Conn
+		err error
+	)
+
+	for streamName, initialized := range c.streamsInitialized {
+		if initialized {
+			continue
+		}
+
+		if nc == nil {
+			nc, err = nats.Connect(c.url)
+			if err != nil {
+				return err
+			}
+		}
+
+		_, err = jsm.NewStream(
+			streamName,
+			jsm.Subjects(fmt.Sprintf("%s.*", streamName)),
+			jsm.StreamConnection(jsm.WithConnection(nc)),
+			jsm.MaxAge(24*365*time.Hour),
+			jsm.FileStorage())
+
+		if err != nil {
+			return err
+		}
+
+		log.Info("Created stream", "streamName", streamName)
 	}
-
-	nc, err := c.new()
-	if err != nil {
-		return err
-	}
-
-	_, err = jsm.NewStream(
-		"ATTESTATION",
-		jsm.Subjects("ATTESTATION.*"),
-		jsm.StreamConnection(jsm.WithConnection(nc)),
-		jsm.MaxAge(24*365*time.Hour),
-		jsm.FileStorage())
-
-	if err != nil {
-		return err
-	}
-
-	log.Info("Created stream ATTESTATION")
-
-	_, err = jsm.NewStream(
-		"ATTESTATION_KEY",
-		jsm.Subjects("ATTESTATION_KEY.*"),
-		jsm.StreamConnection(jsm.WithConnection(nc)),
-		jsm.MaxAge(24*365*time.Hour),
-		jsm.FileStorage())
-
-	if err != nil {
-		return err
-	}
-
-	log.Info("Created stream ATTESTATION_KEY")
-	c.initialized = true
 
 	return nil
 }
@@ -88,7 +79,7 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 func (c *JetstreamClient) PublishAttestation(attesterName string, occurrence *grafeas.Occurrence) error {
 	log := c.log.WithName("PublishAttestation()").WithValues("attester", attesterName)
 
-	nc, err := c.new()
+	nc, err := nats.Connect(c.url)
 	if err != nil {
 		return err
 	}
@@ -113,7 +104,7 @@ func (c *JetstreamClient) PublishAttestation(attesterName string, occurrence *gr
 func (c *JetstreamClient) PublishPublicKey(attesterName string, publicKey []byte) error {
 	log := c.log.WithName("PublishPublicKey()").WithValues("attester", attesterName)
 
-	nc, err := c.new()
+	nc, err := nats.Connect(c.url)
 	if err != nil {
 		return err
 	}
@@ -141,7 +132,7 @@ func (c *JetstreamClient) PublishPublicKey(attesterName string, publicKey []byte
 func (c *JetstreamClient) Subscribe(attester string) error {
 	log := c.log.WithName("Subscribe()").WithValues("attester", attester)
 
-	nc, err := c.new()
+	nc, err := nats.Connect(c.url)
 	if err != nil {
 		return err
 	}
