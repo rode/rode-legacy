@@ -127,6 +127,16 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 
+	err = r.EventManager.Initialize(req.NamespacedName.String())
+	if err != nil {
+		_ = r.updateStatus(ctx, att, rodev1alpha1.ConditionStream, rodev1alpha1.ConditionStatusFalse)
+		return ctrl.Result{}, err
+	}
+	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionStream, rodev1alpha1.ConditionStatusTrue)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
 	// Create signer
 	signer, err := r.createSigner(ctx, att)
 	if err != nil {
@@ -134,16 +144,6 @@ func (r *AttesterReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, err
 	}
 	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionSecret, rodev1alpha1.ConditionStatusTrue)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	err = r.EventManager.Initialize(req.NamespacedName.String())
-	if err != nil {
-		_ = r.updateStatus(ctx, att, rodev1alpha1.ConditionStream, rodev1alpha1.ConditionStatusFalse)
-		return ctrl.Result{}, err
-	}
-	err = r.updateStatus(ctx, att, rodev1alpha1.ConditionStream, rodev1alpha1.ConditionStatusTrue)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
