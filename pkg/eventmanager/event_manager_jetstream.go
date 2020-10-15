@@ -39,6 +39,10 @@ func NewJetstreamClient(log logr.Logger, url string, occurrenceCreator occurrenc
 	}
 }
 
+func (c *JetstreamClient) new() (*nats.Conn, error) {
+	return nats.Connect(c.url)
+}
+
 func (c *JetstreamClient) Initialize(attesterName string) error {
 	log := c.log.WithName("Initialize()").WithValues("attester", attesterName)
 
@@ -53,7 +57,7 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 		}
 
 		if nc == nil {
-			nc, err = nats.Connect(c.url)
+			nc, err = c.new()
 			if err != nil {
 				return err
 			}
@@ -70,6 +74,7 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 			return err
 		}
 
+		c.streamsInitialized[streamName] = true
 		log.Info("Created stream", "streamName", streamName)
 	}
 
@@ -96,7 +101,7 @@ func (c *JetstreamClient) publish(streamName, attesterName string, message inter
 		WithName("publish()").
 		WithValues("attester", attesterName, "stream", streamName)
 
-	nc, err := nats.Connect(c.url)
+	nc, err := c.new()
 	if err != nil {
 		return err
 	}
@@ -114,7 +119,7 @@ func (c *JetstreamClient) publish(streamName, attesterName string, message inter
 func (c *JetstreamClient) Subscribe(attester string) error {
 	log := c.log.WithName("Subscribe()").WithValues("attester", attester)
 
-	nc, err := nats.Connect(c.url)
+	nc, err := c.new()
 	if err != nil {
 		return err
 	}
