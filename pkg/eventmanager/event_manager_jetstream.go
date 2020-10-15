@@ -83,17 +83,15 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 
 func (c *JetstreamClient) PublishAttestation(attesterName string, occurrence *grafeas.Occurrence) error {
 	am := newAttestationMessage(*occurrence)
-	return c.publish("ATTESTATION", attesterName, &am)
+	return c.publish("ATTESTATION", attesterName, am)
 }
 
 func (c *JetstreamClient) PublishPublicKey(attesterName string, publicKey []byte) error {
-	message := struct {
-		Base64PublicKey string `json:"base64PublicKey"`
-	}{
+	message := &publicKeyMessage{
 		Base64PublicKey: base64.StdEncoding.EncodeToString(publicKey),
 	}
 
-	return c.publish("ATTESTATION_KEY", attesterName, &message)
+	return c.publish("ATTESTATION_KEY", attesterName, message)
 }
 
 func (c *JetstreamClient) publish(streamName, attesterName string, message interface{}) error {
@@ -287,6 +285,10 @@ type attestationMessage struct {
 	Details    grafeas.Occurrence_Attestation                      `json:"details"`
 	Signature  grafeasAttestation.Attestation_PgpSignedAttestation `json:"signature"`
 	KeyID      grafeasAttestation.PgpSignedAttestation_PgpKeyId    `json:"key_id"`
+}
+
+type publicKeyMessage struct {
+	Base64PublicKey string
 }
 
 func newAttestationMessage(occurrence grafeas.Occurrence) *attestationMessage {
