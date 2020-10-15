@@ -124,10 +124,11 @@ func (c *JetstreamClient) PublishPublicKey(attesterName string, publicKey []byte
 	}
 
 	message, err := json.Marshal(&struct {
-		base64PublicKey string
+		Base64PublicKey string `json:"base64PublicKey"`
 	}{
-		base64PublicKey: base64.StdEncoding.EncodeToString(publicKey),
+		Base64PublicKey: base64.StdEncoding.EncodeToString(publicKey),
 	})
+
 	if err != nil {
 		return err
 	}
