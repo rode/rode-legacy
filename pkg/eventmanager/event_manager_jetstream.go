@@ -77,56 +77,38 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 }
 
 func (c *JetstreamClient) PublishAttestation(attesterName string, occurrence *grafeas.Occurrence) error {
-	log := c.log.WithName("PublishAttestation()").WithValues("attester", attesterName)
-
-	nc, err := nats.Connect(c.url)
-	if err != nil {
-		return err
-	}
-
-	_, err = jsm.LoadStream("ATTESTATION", jsm.WithConnection(nc))
-
-	if err != nil {
-		return err
-	}
-
 	am := newAttestationMessage(*occurrence)
-	messageData, err := json.Marshal(am)
-	if err != nil {
-		return err
-	}
-
-	subSubject := "ATTESTATION." + attesterName
-	log.Info("Publishing message", "subject", subSubject)
-	return nc.Publish(subSubject, messageData)
+	return c.publish("ATTESTATION", attesterName, &am)
 }
 
 func (c *JetstreamClient) PublishPublicKey(attesterName string, publicKey []byte) error {
-	log := c.log.WithName("PublishPublicKey()").WithValues("attester", attesterName)
+	message := struct {
+		Base64PublicKey string `json:"base64PublicKey"`
+	}{
+		Base64PublicKey: base64.StdEncoding.EncodeToString(publicKey),
+	}
+
+	return c.publish("ATTESTATION_KEY", attesterName, &message)
+}
+
+func (c *JetstreamClient) publish(streamName, attesterName string, message interface{}) error {
+	log := c.log.
+		WithName("publish()").
+		WithValues("attester", attesterName, "stream", streamName)
 
 	nc, err := nats.Connect(c.url)
 	if err != nil {
 		return err
 	}
-	_, err = jsm.LoadStream("ATTESTATION_KEY", jsm.WithConnection(nc))
-
+	_, err = jsm.LoadStream(streamName, jsm.WithConnection(nc))
+	jsonMessage, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
+	subject := fmt.Sprintf("%s.%s", streamName, attesterName)
+	log.Info("Publishing message", "subject", subject)
 
-	message, err := json.Marshal(&struct {
-		Base64PublicKey string `json:"base64PublicKey"`
-	}{
-		Base64PublicKey: base64.StdEncoding.EncodeToString(publicKey),
-	})
-
-	if err != nil {
-		return err
-	}
-
-	subSubject := "ATTESTATION_KEY." + attesterName
-	log.Info("Publishing message", "subject", subSubject)
-	return nc.Publish(subSubject, message)
+	return nc.Publish(subject, jsonMessage)
 }
 
 func (c *JetstreamClient) Subscribe(attester string) error {
