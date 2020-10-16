@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// +k8s:deepcopy-gen=false
 type EnforcerInterface interface {
 	metav1.ObjectMetaAccessor
 	Attesters() []*EnforcerAttester
@@ -50,24 +51,24 @@ type Enforcer struct {
 	Status EnforcerStatus `json:"status,omitempty"`
 }
 
-func (e *Enforcer) Attesters() []*EnforcerAttester {
-	return e.Spec.Attesters
+func (in *Enforcer) Attesters() []*EnforcerAttester {
+	return in.Spec.Attesters
 }
 
-func (e *Enforcer) SetConditions(conditions []Condition) {
-	e.Status.Conditions = conditions
+func (in *Enforcer) SetConditions(conditions []Condition) {
+	in.Status.Conditions = conditions
 }
 
-func (e *Enforcer) GetConditions() []Condition {
-	return e.Status.Conditions
+func (in *Enforcer) GetConditions() []Condition {
+	return in.Status.Conditions
 }
 
-func (e *Enforcer) SetCondition(conditionType ConditionType, conditionStatus ConditionStatus, message string) {
-	SetCondition(e, conditionType, conditionStatus, message)
+func (in *Enforcer) SetCondition(conditionType ConditionType, conditionStatus ConditionStatus, message string) {
+	SetCondition(in, conditionType, conditionStatus, message)
 }
 
-func (e *Enforcer) GetConditionStatus(conditionType ConditionType) ConditionStatus {
-	return GetConditionStatus(e, conditionType)
+func (in *Enforcer) GetConditionStatus(conditionType ConditionType) ConditionStatus {
+	return GetConditionStatus(in, conditionType)
 }
 
 // +kubebuilder:object:root=true
@@ -88,6 +89,6 @@ type EnforcerAttester struct {
 	Name      string `json:"name"`
 }
 
-func (ea EnforcerAttester) String() string {
-	return fmt.Sprintf("%s/%s", ea.Namespace, ea.Name)
+func (in EnforcerAttester) String() string {
+	return fmt.Sprintf("%s/%s", in.Namespace, in.Name)
 }
