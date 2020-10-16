@@ -47,6 +47,16 @@ unit:
 	go test -cover -tags unit ./...
 
 mockgen:
+ifeq (, $(shell which mockgen))
+	@{ \
+	set -e ;\
+	INSTALL_TMP_DIR=$$(mktemp -d) ;\
+	cd $$INSTALL_TMP_DIR ;\
+	go mod init tmp ;\
+	GO111MODULE=on go get github.com/golang/mock/mockgen@v1.4.4 ;\
+	rm -rf $$INSTALL_TMP_DIR ;\
+	}
+endif
 	go generate ./...
 
 # Generate code
