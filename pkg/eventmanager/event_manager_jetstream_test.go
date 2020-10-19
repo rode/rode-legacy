@@ -204,10 +204,10 @@ var _ = Describe("jetstream eventmanager", func() {
 			mockStreamManager.EXPECT().LoadStream(gomock.Any(), gomock.Any())
 			var actualRawMessage []byte
 			mockConnection.EXPECT().
-				Publish("ATTESTATION_KEY." + attesterName, gomock.Any()).
+				Publish("ATTESTATION_KEY."+attesterName, gomock.Any()).
 				Do(func(_ string, data []byte) {
 					actualRawMessage = data
-			}).
+				}).
 				Times(1)
 
 			err := eventManager.PublishPublicKey(attesterName, publicKey)
