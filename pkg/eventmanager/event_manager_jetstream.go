@@ -7,8 +7,6 @@ import (
 	"fmt"
 	natsWrapper "github.com/liatrio/rode/pkg/nats"
 	"github.com/nats-io/jsm.go"
-	"github.com/nats-io/nats.go"
-
 	"time"
 
 	grafeasAttestation "github.com/grafeas/grafeas/proto/v1beta1/attestation_go_proto"
@@ -52,7 +50,7 @@ func NewJetstreamClient(
 	}
 }
 
-func (c *JetstreamClient) new() (*nats.Conn, error) {
+func (c *JetstreamClient) new() (natsWrapper.Connection, error) {
 	return c.connectionFactory.Connect(c.url)
 }
 
@@ -60,7 +58,7 @@ func (c *JetstreamClient) Initialize(attesterName string) error {
 	log := c.log.WithName("Initialize()").WithValues("attester", attesterName)
 
 	var (
-		nc  *nats.Conn
+		nc  natsWrapper.Connection
 		err error
 	)
 
