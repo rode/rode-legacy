@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestAttester(t *testing.T) {
+func TestEventManager(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecsWithDefaultAndCustomReporters(t,
 		"EventManager Suite",
