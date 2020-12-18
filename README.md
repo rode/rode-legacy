@@ -1,3 +1,6 @@
+# Warning: this project as been deprecated
+As of 12/18/2020 the new home for all `rode` development will be located at [github.com/rode](https://github.com/rode) 
+
 # ![](docs/logo.png) Rode 
 ![tag](https://github.com/liatrio/rode/workflows/tag/badge.svg)
 > \rōd\ - a line (as of rope or chain) used to attach an anchor to a boat
