@@ -1,4 +1,4 @@
-# Warning: this project as been deprecated
+# Warning: this project has been deprecated
 As of 12/18/2020 the new home for all `rode` development will be located at [github.com/rode](https://github.com/rode) 
 
 # ![](docs/logo.png) Rode 
